@@ -25,7 +25,7 @@ else()
 endif()
 
 # Proto file
-foreach(_target server master)
+foreach(_target structure server master)
   get_filename_component(${_target}_proto "./protos/${_target}.proto" ABSOLUTE)
   get_filename_component(${_target}_proto_path "${${_target}_proto}" PATH)
 
@@ -63,9 +63,9 @@ endforeach()
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
 # c++ targets
-foreach(_target main)
+foreach(_target server master)
   add_executable(${_target} "./src/${_target}.cpp")
   target_link_libraries(${_target}
-    server_grpc_proto master_grpc_proto
+    structure_grpc_proto server_grpc_proto master_grpc_proto
   )
 endforeach()

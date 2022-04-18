@@ -1,16 +1,31 @@
 // Definition for services hosted on master
 syntax = "proto3";
+import "google/protobuf/empty.proto";
+import "structure.proto";
+
+
 message RegisterRequest {
-    string ip = 1;
-    int32 port = 2;
+    ServerIp serverIp = 1;
 }
 
 message RegisterReply {
     int32 status = 1;
 }
 
+// Listens for server nodes
 service NodeListener {
-    // Sends a greeting
+    // allow new server to register themselves
     rpc Register (RegisterRequest) returns (RegisterReply) {}
-  }
+}
+
+message GetConfigReply {
+    ServerIp head = 1;
+    ServerIp tail = 2;
+}
+
+// Listens for client requests
+service ClientListener {
+    // return server cluster info - head and tail
+    rpc GetConfig (google.protobuf.Empty) returns (GetConfigReply) {}
+}
   

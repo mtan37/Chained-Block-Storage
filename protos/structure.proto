@@ -1,0 +1,7 @@
+// The shared structure between different proto files is defined here
+syntax = "proto3";
+
+message ServerIp {
+    string ip = 1;
+    int32 port = 2;
+}

@@ -1,9 +1,23 @@
+// Definition for services hosted on server nodes
 syntax = "proto3";
+import "google/protobuf/empty.proto";
+import "structure.proto";
 
-message empty {
-
+message ChangeModeRequest {
+    ServerIp prevAddr = 1;
+    ServerIp nextAddr = 2;
 }
 
-service MasterListner {
-    rpc HeartBeat(empty) returns (empty) {}
+message ChangeModeReply {
+    int32 status = 1;
 }
+
+// service listens for call from master
+service MasterListener {
+    rpc HeartBeat(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+    rpc ChangeMode(ChangeModeRequest) returns (ChangeModeReply) {}
+}
+
+// separate? 
+service ClientListenerHeadService {}
+service ClientListenerTailService {}
