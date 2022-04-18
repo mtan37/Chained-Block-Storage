@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+message empty {
+
+}
+
+service MasterListner {
+    rpc HeartBeat(empty) returns (empty) {}
+}

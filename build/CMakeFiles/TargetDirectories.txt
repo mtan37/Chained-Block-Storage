@@ -1,0 +1,5 @@
+/home/marvintan/Chained-Block-Storage/build/CMakeFiles/rebuild_cache.dir
+/home/marvintan/Chained-Block-Storage/build/CMakeFiles/main.dir
+/home/marvintan/Chained-Block-Storage/build/CMakeFiles/edit_cache.dir
+/home/marvintan/Chained-Block-Storage/build/CMakeFiles/master_grpc_proto.dir
+/home/marvintan/Chained-Block-Storage/build/CMakeFiles/server_grpc_proto.dir

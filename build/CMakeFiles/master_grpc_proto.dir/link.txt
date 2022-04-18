@@ -1,0 +1,2 @@
+/usr/bin/ar qc libmaster_grpc_proto.a  CMakeFiles/master_grpc_proto.dir/master.grpc.pb.cc.o CMakeFiles/master_grpc_proto.dir/master.pb.cc.o
+/usr/bin/ranlib libmaster_grpc_proto.a
