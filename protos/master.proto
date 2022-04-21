@@ -1,7 +1,13 @@
 // Definition for services hosted on master
 syntax = "proto3";
 import "google/protobuf/empty.proto";
-import "structure.proto";
+
+package master;
+
+message ServerIp {
+    string ip = 1;
+    int32 port = 2;
+}
 
 // Listens for server nodes
 message RegisterRequest {
@@ -9,7 +15,7 @@ message RegisterRequest {
 }
 
 message RegisterReply {
-    int32 status = 1;
+    ServerIp prevAddr = 1;
 }
 
 service NodeListener {

@@ -1,7 +1,13 @@
 // Definition for services hosted on server nodes
 syntax = "proto3";
 import "google/protobuf/empty.proto";
-import "structure.proto";
+
+package server;
+
+message ServerIp {
+    string ip = 1;
+    int32 port = 2;
+}
 
 message ChangeModeRequest {
     ServerIp prevAddr = 1;
