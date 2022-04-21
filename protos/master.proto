@@ -3,7 +3,7 @@ syntax = "proto3";
 import "google/protobuf/empty.proto";
 import "structure.proto";
 
-
+// Listens for server nodes
 message RegisterRequest {
     ServerIp serverIp = 1;
 }
@@ -12,18 +12,17 @@ message RegisterReply {
     int32 status = 1;
 }
 
-// Listens for server nodes
 service NodeListener {
     // allow new server to register themselves
     rpc Register (RegisterRequest) returns (RegisterReply) {}
 }
 
+// Listens for client requests
 message GetConfigReply {
     ServerIp head = 1;
     ServerIp tail = 2;
 }
 
-// Listens for client requests
 service ClientListener {
     // return server cluster info - head and tail
     rpc GetConfig (google.protobuf.Empty) returns (GetConfigReply) {}
