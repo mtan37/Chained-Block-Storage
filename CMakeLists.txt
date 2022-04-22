@@ -69,13 +69,13 @@ foreach(_target server master)
   add_executable(${_target} 
     ./src/${_target}_main.cpp 
     ./src/headers/master.h
-    ./src/interfaceImpl/master/NodeListenerImpl.cpp
-    ./src/interfaceImpl/master/ClientListenerImpl.cpp
+    ./src/interfaceImpl/masterService/NodeListenerImpl.cpp
+    ./src/interfaceImpl/masterService/ClientListenerImpl.cpp
     ./src/headers/server.h
-    ./src/interfaceImpl/server/HeadServiceImpl.cpp
-    ./src/interfaceImpl/server/TailServiceImpl.cpp
-    ./src/interfaceImpl/server/NodeListenerImpl.cpp
-    ./src/interfaceImpl/server/MasterListenerImpl.cpp
+    ./src/interfaceImpl/serverService/HeadServiceImpl.cpp
+    ./src/interfaceImpl/serverService/TailServiceImpl.cpp
+    ./src/interfaceImpl/serverService/NodeListenerImpl.cpp
+    ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     )
   target_link_libraries(${_target}
     server_grpc_proto master_grpc_proto
