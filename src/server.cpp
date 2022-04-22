@@ -6,22 +6,12 @@
 #include "master.grpc.pb.h"
 
 #include "constants.hpp"
+#include "master.h"
 
 using namespace std;
 
 // Global variables
 string master_ip;
-
-class NodeListenerImpl final : public master::NodeListener::Service {
-public:
-
-  grpc::Status Register (grpc::ServerContext *context,
-                          const master::RegisterRequest *request,
-                          master::RegisterReply *reply) {
-    //return success
-    return grpc::Status::OK;
-  }
-};
 
 /**
  Parse out arguments sent into program

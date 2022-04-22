@@ -62,9 +62,16 @@ endforeach()
 # add executables to root directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+include_directories(src/headers)
+
 # c++ targets
 foreach(_target server master)
-  add_executable(${_target} "./src/${_target}.cpp")
+  add_executable(${_target} 
+    ./src/${_target}.cpp 
+    ./src/headers/master.h
+    ./src/interfaceImpl/NodeListenerImpl.cpp
+    ./src/interfaceImpl/ClientListenerImpl.cpp
+    )
   target_link_libraries(${_target}
     server_grpc_proto master_grpc_proto
   )
