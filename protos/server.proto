@@ -38,7 +38,7 @@ message WriteReply{
 }
 
 // Service hosted on head, listening for client write request
-service ClientListenerHeadService {
+service HeadService {
     rpc Write(WriteRequest) returns (WriteReply){}
 }
 
@@ -48,7 +48,7 @@ message WriteAckRequest{
 }
 
 // Service hosted on tail, listening for client request for receiving ack for sent writes
-service ClientListenerTailService {
+service TailService {
     rpc WriteAck(WriteAckRequest) returns (google.protobuf.Empty){}
 }
 

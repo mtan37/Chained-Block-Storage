@@ -7,6 +7,7 @@
 
 #include "constants.hpp"
 #include "master.h"
+#include "server.h"
 
 using namespace std;
 

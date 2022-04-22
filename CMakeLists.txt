@@ -67,10 +67,15 @@ include_directories(src/headers)
 # c++ targets
 foreach(_target server master)
   add_executable(${_target} 
-    ./src/${_target}.cpp 
+    ./src/${_target}_main.cpp 
     ./src/headers/master.h
-    ./src/interfaceImpl/NodeListenerImpl.cpp
-    ./src/interfaceImpl/ClientListenerImpl.cpp
+    ./src/interfaceImpl/master/NodeListenerImpl.cpp
+    ./src/interfaceImpl/master/ClientListenerImpl.cpp
+    ./src/headers/server.h
+    ./src/interfaceImpl/server/HeadServiceImpl.cpp
+    ./src/interfaceImpl/server/TailServiceImpl.cpp
+    ./src/interfaceImpl/server/NodeListenerImpl.cpp
+    ./src/interfaceImpl/server/MasterListenerImpl.cpp
     )
   target_link_libraries(${_target}
     server_grpc_proto master_grpc_proto
