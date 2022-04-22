@@ -1,5 +1,6 @@
 #include <iostream>
 #include "server.h"
+#include "tables.hpp"
 
 using namespace std;
 
@@ -7,6 +8,9 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
         // TODO 
+        //Test global tables
+        Tables::pendingQueueEntry entry;
+        Tables::pushPendingQueue(entry);
         return grpc::Status::OK;
 }
 

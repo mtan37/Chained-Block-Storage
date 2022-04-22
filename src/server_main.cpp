@@ -6,6 +6,7 @@
 #include "master.grpc.pb.h"
 
 #include "constants.hpp"
+#include "tables.hpp" 
 #include "master.h"
 #include "server.h"
 
@@ -49,6 +50,11 @@ int register_server() {
 }
 
 int main(int argc, char *argv[]) {
+
+    //Testing global tables
+    Tables::pendingQueueEntry entry;
+    Tables::pushPendingQueue(entry);
+
     if (parse_args(argc, argv) < 0) return -1;
     if (register_server() < 0) return -1;
     return 0;
