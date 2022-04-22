@@ -51,4 +51,8 @@ public:
     grpc::Status RelayWriteAck (grpc::ServerContext *context,
                           const server::RelayWriteAckRequest *request,
                           google::protobuf::Empty *reply);
+
+    grpc::Status ReplayLogChange (grpc::ServerContext *context,
+            const server::ReplayLogChangeRequest *request,
+            google::protobuf::Empty *reply);             
 };
