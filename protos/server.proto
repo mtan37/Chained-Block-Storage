@@ -50,7 +50,7 @@ message ReadRequest {
     uint64 offset = 1;
 }
 
-message ReadRply {
+message ReadReply {
     bytes data = 1;
 }
 
