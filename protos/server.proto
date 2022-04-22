@@ -42,14 +42,22 @@ service HeadService {
     rpc Write(WriteRequest) returns (WriteReply){}
 }
 
-message WriteAckRequest{
+message WriteAckRequest {
+    uint64 clientRequestId = 1;
+}
+
+message ReadRequest {
     uint64 offset = 1;
-    uint64 seqNum = 2;
+}
+
+message ReadRply {
+    bytes data = 1;
 }
 
 // Service hosted on tail, listening for client request for receiving ack for sent writes
 service TailService {
     rpc WriteAck(WriteAckRequest) returns (google.protobuf.Empty){}
+    rpc Read(ReadRequest) returns (ReadReply){}
 }
 
 // listening for calls from other node

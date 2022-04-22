@@ -35,6 +35,10 @@ public:
     grpc::Status WriteAck (grpc::ServerContext *context,
                           const server::WriteAckRequest *request,
                           google::protobuf::Empty *reply);
+
+    grpc::Status Read (grpc::ServerContext *context,
+                          const server::ReadRequest *request,
+                          server::ReadReply *reply);
 };
 
 class server::NodeListenerImpl final : public server::NodeListener::Service {

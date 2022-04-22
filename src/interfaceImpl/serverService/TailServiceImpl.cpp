@@ -10,3 +10,11 @@ grpc::Status WriteAck (
         // TODO 
         return grpc::Status::OK;
 }
+
+grpc::Status Read (
+    grpc::ServerContext *context,
+    const server::ReadRequest *request,
+    server::ReadReply *reply) {
+        // TODO 
+        return grpc::Status::OK;
+}
