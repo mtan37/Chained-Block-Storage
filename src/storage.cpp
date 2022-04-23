@@ -44,21 +44,25 @@ static int64_t get_first_level(int64_t offset) {
   offset /= NUM_ENTRIES;
   offset /= NUM_INDIRECT;
   offset /= NUM_INDIRECT;
+  offset /= BLOCK_SIZE;
   return offset & (NUM_FIRST_LEVEL - 1);
 }
 
 static int64_t get_second_level(int64_t offset) {
   offset /= NUM_ENTRIES;
   offset /= NUM_INDIRECT;
+  offset /= BLOCK_SIZE;
   return offset & (NUM_INDIRECT - 1);
 }
 
 static int64_t get_third_level(int64_t offset) {
   offset /= NUM_ENTRIES;
+  offset /= BLOCK_SIZE;
   return offset & (NUM_INDIRECT - 1);
 }
 
 static int64_t get_last_level(int64_t offset) {
+  offset /= BLOCK_SIZE;
   return offset & (NUM_ENTRIES - 1);
 }
 
@@ -179,18 +183,48 @@ void init_volume(std::string volume_name) {
 }
 
 void write(std::string buf, long volume_offset, long file_offset[2]) {
+  buf.resize(BLOCK_SIZE);
   write(buf.data(), volume_offset, file_offset);
 }
 
 void write(std::vector<char> buf, long volume_offset, long file_offset[2]) {
+  buf.resize(BLOCK_SIZE);
   write(&buf[0], volume_offset, file_offset);
 }
 
 void write(const char* buf, long volume_offset, long file_offset[2]) {
-  int64_t block_num = free_blocks.front();
-  free_blocks.pop();
-  write_block(buf, block_num);
-  file_offset[0] = block_num;
+  int64_t remainder = volume_offset % BLOCK_SIZE;
+
+  //TODO: handle case when there are no free blocks
+
+  if (remainder) {
+    int64_t offset = volume_offset - remainder;
+    char* buf1 = new char[BLOCK_SIZE];
+
+    int64_t block_num = free_blocks.front();
+    free_blocks.pop();
+    read(buf1, offset);
+    memcpy(buf1 + remainder, buf, BLOCK_SIZE - remainder);
+    write_block(buf1, block_num);
+    file_offset[0] = block_num;
+
+    ++offset;
+    block_num - free_blocks.front();
+    free_blocks.pop();
+    read(buf1, offset);
+    memcpy(buf1, buf + BLOCK_SIZE - remainder, remainder);
+    write_block(buf1, block_num);
+    file_offset[1] = block_num;
+
+    delete[] buf1;
+  }
+  else {
+    int64_t block_num = free_blocks.front();
+    free_blocks.pop();
+    write_block(buf, block_num);
+    file_offset[0] = block_num;
+    file_offset[1] = -1;
+  }
 }
 
 void read(std::string buf, long volume_offset) {
