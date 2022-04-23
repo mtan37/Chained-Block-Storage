@@ -20,6 +20,8 @@ string master_ip;
 namespace server {
     std::string next_node_ip;
     std::string next_node_port;
+    std::string prev_node_ip;
+    std::string prev_node_port;
     State state;
 };
 
@@ -58,6 +60,8 @@ int register_server() {
     //TODO: Get next node ip and port from master
     server::next_node_ip = "";
     server::next_node_port = "";
+    server::prev_node_ip = "";
+    server::prev_node_port = "";
     
     return 0;
 }
@@ -92,13 +96,13 @@ void relay_write_background() {
             
             //Add to sent list
             Tables::sentListEntry sent_entry;
-            sent_entry.seqNum = pending_entry.seqNum;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             //TODO: Where does file offset come from?
             sent_entry.fileOffset = 0;
-            Tables::pushSentList(sent_entry);
+            Tables::pushSentList(pending_entry.seqNum, sent_entry);
             
             //Add to replay log
+            //TODO: This needs to be moved over to write()
             Tables::replayLogEntry replay_entry;
             replay_entry.seqNum = pending_entry.seqNum;
             replay_entry.reqID = pending_entry.reqID;
@@ -106,14 +110,9 @@ void relay_write_background() {
             
             if (server::state == server::TAIL) {
                 //TODO: commit
+                //TODO: send an ack backwards?
             }
         }
-    }
-}
-
-void commit_ack_background() {
-    while(true) {
-
     }
 }
 
@@ -125,7 +124,6 @@ int main(int argc, char *argv[]) {
     
     //Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
-    std::thread commit_ack_thread(commit_ack_background);
 
     if (parse_args(argc, argv) < 0) return -1;
     if (register_server() < 0) return -1;

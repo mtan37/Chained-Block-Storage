@@ -2,6 +2,7 @@
 #include <map>
 #include <utility>
 #include <exception>
+#include <stdexcept>
 #include "headers/tables.hpp"
 
 namespace Tables {
