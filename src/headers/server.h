@@ -7,6 +7,10 @@ namespace server {
     class HeadServiceImpl;
     class TailServiceImpl;
     class NodeListenerImpl;
+    extern std::string next_node_ip;
+    extern std::string next_node_port;
+    enum State { HEAD, TAIL, MIDDLE };
+    extern State state;
 }
 
 class server::MasterListenerImpl final : public server::MasterListener::Service {

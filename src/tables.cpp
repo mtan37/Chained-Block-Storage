@@ -18,6 +18,10 @@ namespace Tables {
        return entry;
    }
    
+   int pendingQueueSize() {
+       return pendingQueue.size();
+   }
+   
    std::priority_queue<sentListEntry> sentList;
    
    void pushSentList(sentListEntry entry) {
@@ -28,6 +32,10 @@ namespace Tables {
        sentListEntry entry = sentList.top();
        sentList.pop();
        return entry;
+   }
+   
+   int sentListSize() {
+       return sentList.size();
    }
    
    std::priority_queue<replayLogEntry> replayLog;
@@ -41,4 +49,9 @@ namespace Tables {
        replayLog.pop();
        return entry;
    }
+   
+   int replayLogSize() {
+       return replayLog.size();
+   }
+   
 };

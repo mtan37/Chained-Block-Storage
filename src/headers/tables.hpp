@@ -32,24 +32,24 @@ namespace Tables {
    extern std::priority_queue<pendingQueueEntry> pendingQueue;
    
    extern void pushPendingQueue(pendingQueueEntry entry);
-   
    extern pendingQueueEntry popPendingQueue();
+   extern int pendingQueueSize();
    
    struct sentListEntry {
        int seqNum;
        int volumeOffset;
        int fileOffset;
        
-        bool operator<(const sentListEntry& comp) const {
-            return seqNum < comp.seqNum;
-        }
+       bool operator<(const sentListEntry& comp) const {
+           return seqNum < comp.seqNum;
+       }
    };
    
    extern std::priority_queue<sentListEntry> sentList;
    
    extern void pushSentList(sentListEntry entry);
-   
    extern sentListEntry popSentList();
+   extern int pendingQueueSize();
    
    struct replayLogEntry {
        int seqNum;
@@ -63,7 +63,8 @@ namespace Tables {
    extern std::priority_queue<replayLogEntry> replayLog;
    
    extern void pushReplayLog(replayLogEntry entry);
-   
    extern replayLogEntry popReplayLog();
+   extern int pendingQueueSize();
+   
 };
 #endif

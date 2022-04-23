@@ -9,8 +9,11 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     google::protobuf::Empty *reply) {
         // TODO 
         //Test global tables
-        Tables::pendingQueueEntry entry;
-        Tables::pushPendingQueue(entry);
+        //Tables::pendingQueueEntry entry;
+        //Tables::pushPendingQueue(entry);
+        
+        
+        
         return grpc::Status::OK;
 }
 
