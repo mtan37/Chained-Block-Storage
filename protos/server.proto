@@ -9,6 +9,12 @@ message ServerIp {
     int32 port = 2;
 }
 
+message ClientRequestId {
+    string ip = 1;
+    uint64 pid = 2;
+    uint64 rid = 3;// request id, unique to the particular client
+}
+
 message ChangeModeRequest {
     ServerIp prevAddr = 1;
     ServerIp nextAddr = 2;
@@ -30,7 +36,7 @@ service MasterListener {
 message WriteRequest{
     bytes data = 1;
     uint64 offset = 2;
-    uint64 clientRequestId = 3;
+    ClientRequestId clientRequestId = 3;
 }
 
 message WriteReply{
@@ -42,14 +48,22 @@ service HeadService {
     rpc Write(WriteRequest) returns (WriteReply){}
 }
 
-message WriteAckRequest{
+message WriteAckRequest {
+    ClientRequestId clientRequestId = 1;
+}
+
+message ReadRequest {
     uint64 offset = 1;
-    uint64 seqNum = 2;
+}
+
+message ReadReply {
+    bytes data = 1;
 }
 
 // Service hosted on tail, listening for client request for receiving ack for sent writes
 service TailService {
     rpc WriteAck(WriteAckRequest) returns (google.protobuf.Empty){}
+    rpc Read(ReadRequest) returns (ReadReply){}
 }
 
 // listening for calls from other node
@@ -63,9 +77,16 @@ message RelayWriteAckRequest {
     uint64 seqNum = 1;
 }
 
+message ReplayLogChangeRequest {
+    // list of ids to be removed
+    repeated ClientRequestId clientRequestIdList = 1;
+}
+
 service NodeListener {
     // relay write to the next node in the chain, return right away
     rpc RelayWrite(RelayWriteRequest) returns (google.protobuf.Empty) {}
     // ack to relayed write
     rpc RelayWriteAck(RelayWriteAckRequest) returns (google.protobuf.Empty) {}
+
+    rpc ReplayLogChange(ReplayLogChangeRequest) returns (google.protobuf.Empty) {}
 }

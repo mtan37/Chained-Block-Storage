@@ -24,6 +24,8 @@ else()
     set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
 endif()
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpic")
+
 # Proto file
 foreach(_target server master)
   get_filename_component(${_target}_proto "./protos/${_target}.proto" ABSOLUTE)
@@ -62,21 +64,38 @@ endforeach()
 # add executables to root directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
+
 include_directories(src/headers)
 
 # c++ targets
-foreach(_target server master)
+foreach(_target server)
   add_executable(${_target} 
-    ./src/${_target}_main.cpp 
-    ./src/headers/master.h
-    ./src/interfaceImpl/masterService/NodeListenerImpl.cpp
-    ./src/interfaceImpl/masterService/ClientListenerImpl.cpp
+    ./src/${_target}_main.cpp
+    ./src/tables.cpp
     ./src/headers/server.h
     ./src/interfaceImpl/serverService/HeadServiceImpl.cpp
     ./src/interfaceImpl/serverService/TailServiceImpl.cpp
     ./src/interfaceImpl/serverService/NodeListenerImpl.cpp
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     )
+
+  target_compile_options(${_target} PRIVATE -fPIC)
+
+  target_link_libraries(${_target}
+    server_grpc_proto master_grpc_proto
+  )
+endforeach()
+
+foreach(_target master)
+  add_executable(${_target} 
+    ./src/${_target}_main.cpp
+    ./src/headers/master.h
+    ./src/interfaceImpl/masterService/NodeListenerImpl.cpp
+    ./src/interfaceImpl/masterService/ClientListenerImpl.cpp
+    )
+
+  target_compile_options(${_target} PRIVATE -fPIC)
+
   target_link_libraries(${_target}
     server_grpc_proto master_grpc_proto
   )

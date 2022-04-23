@@ -7,6 +7,10 @@ namespace server {
     class HeadServiceImpl;
     class TailServiceImpl;
     class NodeListenerImpl;
+    extern std::string next_node_ip;
+    extern std::string next_node_port;
+    enum State { HEAD, TAIL, MIDDLE };
+    extern State state;
 }
 
 class server::MasterListenerImpl final : public server::MasterListener::Service {
@@ -35,6 +39,10 @@ public:
     grpc::Status WriteAck (grpc::ServerContext *context,
                           const server::WriteAckRequest *request,
                           google::protobuf::Empty *reply);
+
+    grpc::Status Read (grpc::ServerContext *context,
+                          const server::ReadRequest *request,
+                          server::ReadReply *reply);
 };
 
 class server::NodeListenerImpl final : public server::NodeListener::Service {
@@ -47,4 +55,8 @@ public:
     grpc::Status RelayWriteAck (grpc::ServerContext *context,
                           const server::RelayWriteAckRequest *request,
                           google::protobuf::Empty *reply);
+
+    grpc::Status ReplayLogChange (grpc::ServerContext *context,
+            const server::ReplayLogChangeRequest *request,
+            google::protobuf::Empty *reply);             
 };

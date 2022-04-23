@@ -6,13 +6,22 @@
 #include "master.grpc.pb.h"
 
 #include "constants.hpp"
+#include "tables.hpp" 
 #include "master.h"
 #include "server.h"
+
+#include <thread>
 
 using namespace std;
 
 // Global variables
 string master_ip;
+
+namespace server {
+    std::string next_node_ip;
+    std::string next_node_port;
+    State state;
+};
 
 /**
  Parse out arguments sent into program
@@ -45,10 +54,79 @@ int register_server() {
         cout << "Can't contact master at " << master_address << endl;
         return -1;
     }
+    
+    //TODO: Get next node ip and port from master
+    server::next_node_ip = "";
+    server::next_node_port = "";
+    
     return 0;
 }
 
+void relay_write_background() {
+    while(true) {
+        if ( Tables::pendingQueueSize() ) {
+            Tables::pendingQueueEntry pending_entry = Tables::popPendingQueue();
+            if (server::state != server::TAIL) {
+                string next_node_address = server::next_node_ip + ":" + server::next_node_port;
+                grpc::ChannelArguments args;
+                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(next_node_address, grpc::InsecureChannelCredentials(), args);
+                std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
+                grpc::ClientContext context;
+                server::RelayWriteRequest request;
+                
+                request.set_data(pending_entry.data);
+                request.set_offset(pending_entry.volumeOffset);
+                request.set_seqnum(pending_entry.seqNum);
+                google::protobuf::Empty RelayWriteReply;
+                
+                grpc::Status status = next_node_stub->RelayWrite(&context, request, &RelayWriteReply);
+
+                if (!status.ok()) {
+                    cout << "Failed to relay write to next node" << endl;
+                    //TODO: Retry? Or put back on the pending queue
+                }
+            } //End forwarding if non-tail
+            
+            //TODO: write locally
+            
+            //Add to sent list
+            Tables::sentListEntry sent_entry;
+            sent_entry.seqNum = pending_entry.seqNum;
+            sent_entry.volumeOffset = pending_entry.volumeOffset;
+            //TODO: Where does file offset come from?
+            sent_entry.fileOffset = 0;
+            Tables::pushSentList(sent_entry);
+            
+            //Add to replay log
+            Tables::replayLogEntry replay_entry;
+            replay_entry.seqNum = pending_entry.seqNum;
+            replay_entry.reqID = pending_entry.reqID;
+            Tables::pushReplayLog(replay_entry);
+            
+            if (server::state == server::TAIL) {
+                //TODO: commit
+            }
+        }
+    }
+}
+
+void commit_ack_background() {
+    while(true) {
+
+    }
+}
+
 int main(int argc, char *argv[]) {
+
+    //Testing global tables
+    Tables::pendingQueueEntry entry;
+    Tables::pushPendingQueue(entry);
+    
+    //Write relay and commit ack threads
+    std::thread relay_write_thread(relay_write_background);
+    std::thread commit_ack_thread(commit_ack_background);
+
     if (parse_args(argc, argv) < 0) return -1;
     if (register_server() < 0) return -1;
     return 0;
