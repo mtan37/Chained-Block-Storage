@@ -1,6 +1,8 @@
 #ifndef tables_hpp
 #define tables_hpp
 
+#include "server.grpc.pb.h"
+
 #include <queue>
 #include <string>
 #include <map>
@@ -12,13 +14,6 @@ namespace Tables {
     extern int currentSeq;
     extern int nextSeq;
 
-    //Replace later with data that directly references IP/pid/timestamp byte values
-    struct clientID {
-        std::string ip = "";
-        int pid = -1;
-        long double timestamp = 0;
-    };
-
     /**
     * Pending Queue
     */
@@ -29,7 +24,7 @@ namespace Tables {
         //Not sure what type data needs to be yet
         std::string data = "";
         //How do we want to store client IDs?
-        clientID reqID;
+        server::ClientRequestId reqId;
 
         bool operator<(const pendingQueueEntry& comp) const {
             return seqNum > comp.seqNum;
@@ -63,23 +58,21 @@ namespace Tables {
     extern int sentListSize();
     void printSentList();
 
-    /***
-    * Replay log
-    */
-    struct replayLogEntry {
-       int seqNum;
-       clientID reqID;
 
-       bool operator<(const replayLogEntry& comp) const {
-            return seqNum < comp.seqNum;
-       }
+    class ReplayLog {
+        private:
+            // TODO
+        public:
+            // add client entry to log if it does not exist(and not already ack'ed)
+            // return -1 if the entry exist
+            int addToLog(server::ClientRequestId clientRequestId);
+            // remove an log entry(and entries with older id) when ack is sent to client
+            // return -1 if the entry does not present in the log 
+            int ackLogEntry(server::ClientRequestId clientRequestId);
+            // remove entires older than given age in seconds
+            void cleanOldLogEntry(time_t age);
     };
 
-    extern std::priority_queue<replayLogEntry> replayLog;
-
-    extern void pushReplayLog(replayLogEntry entry);
-    extern replayLogEntry popReplayLog();
-    extern int replayLogSize();
-   
+    extern ReplayLog replayLog;
 };
 #endif

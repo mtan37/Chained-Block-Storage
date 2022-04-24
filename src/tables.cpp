@@ -123,23 +123,17 @@ namespace Tables {
        }
     }
 
-    /***
-    * Replay log
-    */
-    std::priority_queue<replayLogEntry> replayLog;
-
-    void pushReplayLog(replayLogEntry entry) {
-       replayLog.push(entry);
+    // implement reply log functions
+    ReplayLog replayLog;
+    int ReplayLog::addToLog(server::ClientRequestId clientRequestId) {
+       return -1;
     }
 
-    replayLogEntry popReplayLog() {
-       replayLogEntry entry = replayLog.top();
-       replayLog.pop();
-       return entry;
+   int ReplayLog::ackLogEntry(server::ClientRequestId clientRequestId) {
+       return -1;
     }
 
-    int replayLogSize() {
-       return replayLog.size();
+   void ReplayLog::cleanOldLogEntry(time_t age) {
+
     }
-   
 };

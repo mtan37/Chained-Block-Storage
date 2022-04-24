@@ -3,7 +3,7 @@
 
 using namespace std;
 
-grpc::Status WriteAck (
+grpc::Status server::TailServiceImpl::WriteAck (
     grpc::ServerContext *context,
     const server::WriteAckRequest *request,
     google::protobuf::Empty *reply) {
@@ -11,7 +11,7 @@ grpc::Status WriteAck (
         return grpc::Status::OK;
 }
 
-grpc::Status Read (
+grpc::Status server::TailServiceImpl::Read (
     grpc::ServerContext *context,
     const server::ReadRequest *request,
     server::ReadReply *reply) {
