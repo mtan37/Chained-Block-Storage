@@ -129,7 +129,7 @@ namespace Tables {
         // check if the there is a client entry
         std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
         std::unordered_map<std::string, 
-            ReplayLog::replayLogEntry*>::const_iterator result = 
+            replayLogEntry*>::const_iterator result = 
             client_list.find(identifier);
         if (result == client_list.end()) {
             // entry not found
@@ -140,25 +140,25 @@ namespace Tables {
             result = client_list.find(identifier);
             if (result == client_list.end()) {
                 // add the new client entry
-                ReplayLog::replayLogEntry new_entry;
-                std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>
-                    timestamp_list = new_entry.timestamp_list;
-                timestamp_list.insert(timestamp_list.end(), client_request_id.timestamp());
-                client_list.insert(std::make_pair(identifier, &new_entry));
+                replayLogEntry *new_entry = new replayLogEntry();
+
+                new_entry->timestamp_list.insert(client_request_id.timestamp());
+                client_list.insert(std::make_pair(identifier, new_entry));
+                new_entry_mutex.unlock();
                 return 0; // first entry for a client added successfully
             }
             new_entry_mutex.unlock();
         }
 
         // check the particular client entry
-        ReplayLog::replayLogEntry *client_entry = result->second;
+        replayLogEntry *client_entry = result->second;
         client_entry->client_entry_mutex.lock();
         // add the timestamp
         std::pair<std::set<
             google::protobuf::Timestamp,
             Tables::googleTimestampComparator
             >::iterator,bool> insert_result = 
-            client_entry->timestamp_list.insert(client_request_id.timestamp());
+            (client_entry->timestamp_list).insert(client_request_id.timestamp());
         client_entry->client_entry_mutex.unlock();
 
         if (insert_result.second) {
@@ -174,4 +174,15 @@ namespace Tables {
     }
 
    void ReplayLog::cleanOldLogEntry(time_t age) {}
+
+   void ReplayLog::printRelayLogContent() {
+        for (auto client_entry_pair : client_list) {
+            std::cout << "for client " << client_entry_pair.first << std::endl;
+            replayLogEntry *client_entry = client_entry_pair.second;
+            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            for (it = client_entry->timestamp_list.begin(); it != client_entry->timestamp_list.end(); it++) {
+                std::cout << " " << (*it).seconds() << ":" << (*it).nanos() << std::endl;
+            }
+        }
+   }
 };

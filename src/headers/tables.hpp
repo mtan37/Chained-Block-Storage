@@ -61,9 +61,8 @@ namespace Tables {
 
     struct googleTimestampComparator {
         bool operator()(
-            const google::protobuf::Timestamp& t1, 
-            const google::protobuf::Timestamp& t2) const {
-            return false;
+            const google::protobuf::Timestamp &t1, 
+            const google::protobuf::Timestamp &t2) {
             if (t1.seconds() < t2.seconds()) return true;
             else if (t1.seconds() == t2.seconds() && t1.nanos() < t2.nanos()) return true;
             return false;
@@ -80,13 +79,15 @@ namespace Tables {
             int ackLogEntry(server::ClientRequestId client_request_id);
             // remove entires older than given age in seconds
             void cleanOldLogEntry(time_t age);
+            void printRelayLogContent();
         private:
             struct replayLogEntry {
+                int test_val = 1;
                 std::mutex client_entry_mutex;// mutext specific to modifying the client's entry
                 std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator> timestamp_list;
             };
             std::mutex new_entry_mutex;
-            std::unordered_map<std::string, ReplayLog::replayLogEntry *> client_list;
+            std::unordered_map<std::string, replayLogEntry *> client_list;
     };
 
     extern ReplayLog replayLog;

@@ -13,7 +13,7 @@ message ServerIp {
 message ClientRequestId {
     string ip = 1;
     uint64 pid = 2;
-    google.protobuf.Timestamp timestamp = 3;// request id, unique to the particular client
+    google.protobuf.Timestamp timestamp = 3;
 }
 
 message ChangeModeRequest {
