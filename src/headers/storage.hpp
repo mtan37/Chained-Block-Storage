@@ -28,6 +28,9 @@ void read(char* buf, long volume_offset);
 // marker
 void commit(long sequence_number, long file_offset[2], long volume_offset);
 
+// Get the most recent commited sequence number
+long get_sequence_number();
+
 } // namespace Storage
 
 #endif //__STORAGE_HPP

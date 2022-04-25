@@ -9,13 +9,15 @@ int main(int argc, char** argv) {
   char data[4096];
   strncpy(data, "Hello World", 4096);
   
+  long seq_num = Storage::get_sequence_number() + 1;
+
   long offsets[2];
   for (int i = 0; i < 1; ++i) {
     Storage::write(data, 1, offsets);
 
     std::cout << offsets[0] << std::endl;
 
-    Storage::commit(i+1, offsets, 1);
+    Storage::commit(seq_num + i, offsets, 1);
   }
   return 0;
 }

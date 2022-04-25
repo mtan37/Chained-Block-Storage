@@ -403,4 +403,10 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   }
 }
 
+long get_sequence_number() {
+  return first_block.last_committed;
+}
+
+
+
 } // namespace Storage
