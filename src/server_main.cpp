@@ -1,10 +1,6 @@
 #include <iostream>
 #include <grpc++/grpc++.h>
 
-// the grpc interface imports
-#include "server.grpc.pb.h"
-#include "master.grpc.pb.h"
-
 #include "constants.hpp"
 #include "tables.hpp" 
 #include "master.h"
@@ -98,15 +94,14 @@ void relay_write_background() {
             Tables::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             //TODO: Where does file offset come from?
-            sent_entry.fileOffset = 0;
+            sent_entry.fileOffset[0] = 0;
             Tables::pushSentList(pending_entry.seqNum, sent_entry);
             
             //Add to replay log
             //TODO: This needs to be moved over to write()
-            Tables::replayLogEntry replay_entry;
-            replay_entry.seqNum = pending_entry.seqNum;
-            replay_entry.reqID = pending_entry.reqID;
-            Tables::pushReplayLog(replay_entry);
+            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
+
+            if (addResult < 0) {}// means entry already exist in log or has been acked
             
             if (server::state == server::TAIL) {
                 //TODO: commit

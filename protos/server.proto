@@ -1,6 +1,7 @@
 // Definition for services hosted on server nodes
 syntax = "proto3";
 import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
 
 package server;
 
@@ -12,7 +13,11 @@ message ServerIp {
 message ClientRequestId {
     string ip = 1;
     uint64 pid = 2;
+<<<<<<< HEAD
     uint64 rid = 3; // request id, unique to the particular client
+=======
+    google.protobuf.Timestamp timestamp = 3;// request id, unique to the particular client
+>>>>>>> 0d110a1f120914b0ad6800f0b74f9506246b9989
 }
 
 message ChangeModeRequest {

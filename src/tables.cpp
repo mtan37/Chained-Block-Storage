@@ -15,6 +15,7 @@ namespace Tables {
     /**
     * Pending Queue
     */
+   
     std::priority_queue<pendingQueueEntry> pendingQueue;
 
     void pushPendingQueue(pendingQueueEntry entry) {
@@ -148,7 +149,8 @@ namespace Tables {
      * Might be worth just adding clientID to sent list.
      *
     */
-//    std::priority_queue<replayLogEntry> replayLog;
+
+//  std::priority_queue<replayLogEntry> replayLog;
     std::map<clientID, int> replayLog;
 
     /***
@@ -168,12 +170,26 @@ namespace Tables {
 //       replayLogEntry entry = replayLog.top();
 //       replayLog.pop();
 //       return entry;
+    // implement reply log functions
+    //     ReplayLog replayLog;
+    //     int ReplayLog::addToLog(server::ClientRequestId clientRequestId) {
+    //    return -1;
     }
 
-    int replayLogSize() {
-       return replayLog.size();
+    // remove an log entry(and entries with older id) when ack is sent to client
+    // return -1 if the entry does not present in the log 
+   int ReplayLog::ackLogEntry(server::ClientRequestId clientRequestId) {
+       return -1;
     }
 
+    /*
+     remove entires older than given age in seconds - used for garbage collection
+    */
+   void ReplayLog::cleanOldLogEntry(time_t age) {
+
+    }
+
+    // Print replay log contents
     void printReplayLog() {
         for (auto it=replayLog.begin(); it!=replayLog.end(); ++it){
             std::cout << "    [ClientID, seqID] = [" <<
