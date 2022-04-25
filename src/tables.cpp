@@ -125,15 +125,53 @@ namespace Tables {
 
     // implement reply log functions
     ReplayLog replayLog;
-    int ReplayLog::addToLog(server::ClientRequestId clientRequestId) {
+    int ReplayLog::addToLog(server::ClientRequestId client_request_id) {
+        // check if the there is a client entry
+        std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
+        std::unordered_map<std::string, 
+            ReplayLog::replayLogEntry*>::const_iterator result = 
+            client_list.find(identifier);
+        if (result == client_list.end()) {
+            // entry not found
+            new_entry_mutex.lock();
+            // have another check in here so multiple threads don't end up adding things twice
+            /* the most common case(with an existing client entry) 
+             * will no go through this double check logic*/
+            result = client_list.find(identifier);
+            if (result == client_list.end()) {
+                // add the new client entry
+                ReplayLog::replayLogEntry new_entry;
+                std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>
+                    timestamp_list = new_entry.timestamp_list;
+                timestamp_list.insert(timestamp_list.end(), client_request_id.timestamp());
+                client_list.insert(std::make_pair(identifier, &new_entry));
+                return 0; // first entry for a client added successfully
+            }
+            new_entry_mutex.unlock();
+        }
+
+        // check the particular client entry
+        ReplayLog::replayLogEntry *client_entry = result->second;
+        client_entry->client_entry_mutex.lock();
+        // add the timestamp
+        std::pair<std::set<
+            google::protobuf::Timestamp,
+            Tables::googleTimestampComparator
+            >::iterator,bool> insert_result = 
+            client_entry->timestamp_list.insert(client_request_id.timestamp());
+        client_entry->client_entry_mutex.unlock();
+
+        if (insert_result.second) {
+            // imply the insert is successful and there is no duplicate entry
+            return 0;
+        }
+
        return -1;
     }
 
-   int ReplayLog::ackLogEntry(server::ClientRequestId clientRequestId) {
+   int ReplayLog::ackLogEntry(server::ClientRequestId client_request_id) {
        return -1;
     }
 
-   void ReplayLog::cleanOldLogEntry(time_t age) {
-
-    }
+   void ReplayLog::cleanOldLogEntry(time_t age) {}
 };

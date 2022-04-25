@@ -8,6 +8,7 @@
 #include <map>
 #include <utility>
 #include <list>
+#include <unordered_map>
 
 namespace Tables {
 
@@ -58,19 +59,34 @@ namespace Tables {
     extern int sentListSize();
     void printSentList();
 
+    struct googleTimestampComparator {
+        bool operator()(
+            const google::protobuf::Timestamp& t1, 
+            const google::protobuf::Timestamp& t2) const {
+            return false;
+            if (t1.seconds() < t2.seconds()) return true;
+            else if (t1.seconds() == t2.seconds() && t1.nanos() < t2.nanos()) return true;
+            return false;
+        }
+    };
 
     class ReplayLog {
-        private:
-            // TODO
         public:
             // add client entry to log if it does not exist(and not already ack'ed)
             // return -1 if the entry exist
-            int addToLog(server::ClientRequestId clientRequestId);
+            int addToLog(server::ClientRequestId client_request_id);
             // remove an log entry(and entries with older id) when ack is sent to client
             // return -1 if the entry does not present in the log 
-            int ackLogEntry(server::ClientRequestId clientRequestId);
+            int ackLogEntry(server::ClientRequestId client_request_id);
             // remove entires older than given age in seconds
             void cleanOldLogEntry(time_t age);
+        private:
+            struct replayLogEntry {
+                std::mutex client_entry_mutex;// mutext specific to modifying the client's entry
+                std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator> timestamp_list;
+            };
+            std::mutex new_entry_mutex;
+            std::unordered_map<std::string, ReplayLog::replayLogEntry *> client_list;
     };
 
     extern ReplayLog replayLog;
