@@ -1,7 +1,7 @@
 #ifndef tables_hpp
 #define tables_hpp
 
-#include "server.grpc.pb.h"
+//#include "server.grpc.pb.h"
 
 #include <queue>
 #include <string>
@@ -14,6 +14,20 @@ namespace Tables {
     extern int currentSeq;
     extern int nextSeq;
 
+    //Replace later with data that directly references IP/pid/timestamp byte values
+    struct clientID {
+        std::string ip = "";
+        int pid = -1;
+        double rid = 0;
+
+        bool operator<(const clientID& comp) const {
+            if (ip == comp.ip){
+                if (pid == comp.pid) {
+                    return rid < comp.rid;
+                } else return pid < comp.pid;
+            } else return ip < comp.ip;
+        }
+    };
     
     /**
     * Pending Queue
@@ -26,7 +40,7 @@ namespace Tables {
         //Not sure what type data needs to be yet
         std::string data = "";
         //How do we want to store client IDs?
-        server::ClientRequestId reqId;
+        clientID reqId;
 
         bool operator<(const pendingQueueEntry& comp) const {
             return seqNum > comp.seqNum;
@@ -74,27 +88,14 @@ namespace Tables {
     */
 
     // replay log data structures
-    //Replace later with data that directly references IP/pid/timestamp byte values
-    struct clientID {
-        std::string ip = "";
-        int pid = -1;
-        double rid = 0;
-
-        bool operator<(const clientID& comp) const {
-            if (ip == comp.ip){
-                if (pid == comp.pid) {
-                    return rid < comp.rid;
-                } else return pid < comp.pid;
-            } else return ip < comp.ip;
-        }
-    };
+    // <client id, seq #>
     typedef std::pair <clientID, int> replayLogEntry;
     extern std::map<clientID, int> replayLog;
     // Add to replay log and return -1, if clientID found, return SeqID
     extern int pushReplayLog(replayLogEntry entry);
     // remove an log entry(and entries with older id) when ack is sent to client
     // return -1 if the entry does not present in the log 
-    int ackLogEntry(server::ClientRequestId clientRequestId);
+    int ackLogEntry(clientID clientRequestId);
     // Return size of replay log
     extern int replayLogSize();
     // Print contents of replay log

@@ -178,14 +178,14 @@ namespace Tables {
 
     // remove an log entry(and entries with older id) when ack is sent to client
     // return -1 if the entry does not present in the log 
-   int ReplayLog::ackLogEntry(server::ClientRequestId clientRequestId) {
+   int ackLogEntry(clientID cid) {
        return -1;
     }
 
     /*
      remove entires older than given age in seconds - used for garbage collection
     */
-   void ReplayLog::cleanOldLogEntry(time_t age) {
+   void cleanOldLogEntry(time_t age) {
 
     }
 

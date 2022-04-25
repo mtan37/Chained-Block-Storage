@@ -92,14 +92,18 @@ void relay_write_background() {
             
             //Add to sent list
             Tables::sentListEntry sent_entry;
-            sent_entry.volumeOffset = pending_entry.volumeOffset;
+            sent_entry.second.volumeOffset = pending_entry.volumeOffset;
             //TODO: Where does file offset come from?
-            sent_entry.fileOffset[0] = 0;
-            Tables::pushSentList(pending_entry.seqNum, sent_entry);
+//            sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
+            sent_entry.first = pending_entry.seqNum;
+            Tables::pushSentList(sent_entry);
             
             //Add to replay log
             //TODO: This needs to be moved over to write()
-            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
+            Tables::replayLogEntry replayEntry;
+            replayEntry.first = pending_entry.reqId;
+            replayEntry.second = pending_entry.seqNum;
+            int addResult = Tables::pushReplayLog(replayEntry);
 
             if (addResult < 0) {}// means entry already exist in log or has been acked
             
