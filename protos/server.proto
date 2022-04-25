@@ -12,7 +12,7 @@ message ServerIp {
 message ClientRequestId {
     string ip = 1;
     uint64 pid = 2;
-    uint64 rid = 3;// request id, unique to the particular client
+    uint64 rid = 3; // request id, unique to the particular client
 }
 
 message ChangeModeRequest {

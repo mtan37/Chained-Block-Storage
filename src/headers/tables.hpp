@@ -16,7 +16,15 @@ namespace Tables {
     struct clientID {
         std::string ip = "";
         int pid = -1;
-        long double timestamp = 0;
+        double rid = 0;
+
+        bool operator<(const clientID& comp) const {
+            if (ip == comp.ip){
+                if (pid == comp.pid) {
+                    return rid < comp.rid;
+                } else return pid < comp.pid;
+            } else return ip < comp.ip;
+        }
     };
 
     /**
@@ -45,41 +53,39 @@ namespace Tables {
     /**
     * Sent List
     */
-    // Entry
-    struct sentListEntry {
+    // Data structures
+    struct sentListItem {
        //int seqNum; // Seq num is the key itself
        int volumeOffset = -1;
        int fileOffset[2] = {-1,-1};
     };
-
-    // List and key value pair
-    //extern std::priority_queue<sentListEntry> sentList;
-    extern std::map<int, sentListEntry> sentList;
-    typedef std::pair <int, sentListEntry> sentListPair;
+    extern std::map<int, sentListItem> sentList;
+    typedef std::pair <int, sentListItem> sentListEntry; // this is how the map above stores this data
     // functions
-    extern void pushSentList(int seqNum, sentListEntry entry);
+    extern void pushSentList(sentListEntry entry);
     extern sentListEntry popSentList(int seqNum);
-    extern std::list<sentListPair> popSentListRange(int startSeqNum = 0);
+    extern std::list<sentListEntry> popSentListRange(int startSeqNum = 0);
     extern int sentListSize();
     void printSentList();
 
     /***
     * Replay log
     */
-    struct replayLogEntry {
-       int seqNum;
-       clientID reqID;
+//    struct replayLogEntry {
+//       int seqNum;
+//       clientID reqID;
+//
+//       bool operator<(const replayLogEntry& comp) const {
+//            return reqID < comp.reqID;
+//       }
+//    };
+    typedef std::pair <clientID, int> replayLogEntry;
+    extern std::map<clientID, int> replayLog;
 
-       bool operator<(const replayLogEntry& comp) const {
-            return seqNum < comp.seqNum;
-       }
-    };
-
-    extern std::priority_queue<replayLogEntry> replayLog;
-
-    extern void pushReplayLog(replayLogEntry entry);
+    extern int pushReplayLog(replayLogEntry entry);
     extern replayLogEntry popReplayLog();
     extern int replayLogSize();
+    void printReplayLog();
    
 };
 #endif
