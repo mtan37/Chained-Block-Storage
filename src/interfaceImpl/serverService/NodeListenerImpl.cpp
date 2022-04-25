@@ -2,17 +2,25 @@
 #include "server.h"
 #include "tables.hpp"
 
+#include <grpc++/grpc++.h>
+
+// the grpc interface imports
+#include "server.grpc.pb.h"
+#include "master.grpc.pb.h"
+
 using namespace std;
 
 grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
-        // TODO 
-        //Test global tables
-        //Tables::pendingQueueEntry entry;
-        //Tables::pushPendingQueue(entry);
         
+        Tables::pendingQueueEntry entry;
+        entry.seqNum = request->seqnum();
+        entry.volumeOffset = request->offset();
+        entry.data = request->data();
+        //TODO: Include clientID in RelayWrite requests?
         
+        Tables::pushPendingQueue(entry);
         
         return grpc::Status::OK;
 }
@@ -20,7 +28,29 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *context,
     const server::RelayWriteAckRequest *request,
     google::protobuf::Empty *reply) {
-        // TODO 
+        
+        //TODO: Update metadata table / commit
+        //TODO: Remove from sent list, depends on changing sentList data strcuture
+        Tables::currentSeq = (int) request->seqnum();
+        Tables::nextSeq = Tables::currentSeq++;
+        
+        //Relay to previous nodes
+        string prev_node_address = server::prev_node_ip + ":" + server::prev_node_port;
+        grpc::ChannelArguments args;
+        args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(prev_node_address, grpc::InsecureChannelCredentials(), args);
+        std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
+        grpc::ClientContext relay_context;
+        google::protobuf::Empty RelayWriteAckReply;
+        
+        grpc::Status status = next_node_stub->RelayWriteAck(&relay_context, *request, &RelayWriteAckReply);
+
+        if (!status.ok()) {
+            cout << "Failed to relay write ack to next node" << endl;
+            //TODO: Retry?
+        }
+        
+        
         return grpc::Status::OK;
 }
 
