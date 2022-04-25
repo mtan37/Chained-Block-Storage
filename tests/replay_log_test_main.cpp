@@ -32,7 +32,26 @@ int addSimpleIds() {
     return 0;
 }
 
+int addOldEntry() {
+    server::ClientRequestId client_id;
+    client_id.set_ip("1.1.1.1");
+    client_id.set_pid(23636);
+    struct timeval tv;
+    google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+    time->set_seconds(1);
+    time->set_nanos(1);
+    int add_result_fail = Tables::replayLog.addToLog(client_id);
+    if (add_result_fail != -2) {
+        cout<<"add to log not return the right error code -2"<<endl;
+        return -1;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     if (addSimpleIds() < 0) cout<<"addSimpleIds test did not pass"<<endl;
     else cout<<"addSimpleIds test successful!"<<endl;
+
+    if (addOldEntry() < 0) cout<<"addOldEntry test did not pass"<<endl;
+    else cout<<"addOldEntry test successful!"<<endl;
 }

@@ -152,6 +152,15 @@ namespace Tables {
 
         // check the particular client entry
         replayLogEntry *client_entry = result->second;
+
+        // first check if the timestamp is and old timestamp
+        if (client_entry->timestamp_list.size() > 0) {
+            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            it = client_entry->timestamp_list.begin();
+            Tables::googleTimestampComparator comp;
+            bool smaller_than_min = comp.operator()(client_request_id.timestamp(), (*it));
+            if (smaller_than_min) return -2; //acked, smallest timestamp present in the list is greater
+        }
         client_entry->client_entry_mutex.lock();
         // add the timestamp
         std::pair<std::set<
@@ -166,7 +175,7 @@ namespace Tables {
             return 0;
         }
 
-       return -1;
+       return -1;// existing entry
     }
 
    int ReplayLog::ackLogEntry(server::ClientRequestId client_request_id) {
