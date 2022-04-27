@@ -1,4 +1,5 @@
 build/
 master
 server
-replay_log_test
+src/benchmarks/testing/test_tables
+src/benchmarks/testing/replay_log_test
