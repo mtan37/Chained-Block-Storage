@@ -128,74 +128,74 @@ namespace Tables {
        }
     }
 
-    /***
-     * Replay log
-     *
-     * Replay log is a little more involved.  We need to be able to check
-     * for a full client ID, if it is present return sequence number, if not then
-     * add to list and return 0.  So need to be able to find ip:pid:ts
-     *
-     * We also need to be able to find an item with client id, and remove all
-     * items with same ip:port but previous timestamp to current client id. This
-     * means that items need to be sorted or grouped by ip:port:ts, but map only
-     * sorts by key.
-     *
-     * Finally we need to be able to run garbage collection,
-     * looking over every item in list and removing it if time stamp is > X seconds old
-     *
-     * Multimap might work for sorting on multiple values in key, and then value is just
-     * seq ID. SeqID is used both to let client know item was already played, and to aid
-     * in recovery on mid failure. Having to find seq # as value would be problematic.
-     * Might be worth just adding clientID to sent list.
-     *
-    */
+    ReplayLog replayLog;
+    int ReplayLog::addToLog(server::ClientRequestId client_request_id) {
+        // check if the there is a client entry
+        std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
+        std::unordered_map<std::string, 
+            replayLogEntry*>::const_iterator result = 
+            client_list.find(identifier);
+        if (result == client_list.end()) {
+            // entry not found
+            new_entry_mutex.lock();
+            // have another check in here so multiple threads don't end up adding things twice
+            /* the most common case(with an existing client entry) 
+             * will no go through this double check logic*/
+            result = client_list.find(identifier);
+            if (result == client_list.end()) {
+                // add the new client entry
+                replayLogEntry *new_entry = new replayLogEntry();
 
-//  std::priority_queue<replayLogEntry> replayLog;
-    std::map<clientID, int> replayLog;
-
-    /***
-     * Adds item to replay log, unless it is already present, in which case it returns seq num
-     * @param entry entry to add to list
-     * @return 0 if added, seq number if already in list
-     */
-    int pushReplayLog(replayLogEntry entry) {
-        auto ret = replayLog.insert(entry);
-        if (ret.second == false) {
-            return ret.first->second;
+                new_entry->timestamp_list.insert(client_request_id.timestamp());
+                client_list.insert(std::make_pair(identifier, new_entry));
+                new_entry_mutex.unlock();
+                return 0; // first entry for a client added successfully
+            }
+            new_entry_mutex.unlock();
         }
-        return 0;
+
+        // check the particular client entry
+        replayLogEntry *client_entry = result->second;
+
+        // first check if the timestamp is and old timestamp
+        if (client_entry->timestamp_list.size() > 0) {
+            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            it = client_entry->timestamp_list.begin();
+            Tables::googleTimestampComparator comp;
+            bool smaller_than_min = comp.operator()(client_request_id.timestamp(), (*it));
+            if (smaller_than_min) return -2; //acked, smallest timestamp present in the list is greater
+        }
+        client_entry->client_entry_mutex.lock();
+        // add the timestamp
+        std::pair<std::set<
+            google::protobuf::Timestamp,
+            Tables::googleTimestampComparator
+            >::iterator,bool> insert_result = 
+            (client_entry->timestamp_list).insert(client_request_id.timestamp());
+        client_entry->client_entry_mutex.unlock();
+
+        if (insert_result.second) {
+            // imply the insert is successful and there is no duplicate entry
+            return 0;
+        }
+
+       return -1;// existing entry
     }
 
-    replayLogEntry popReplayLog() {
-//       replayLogEntry entry = replayLog.top();
-//       replayLog.pop();
-//       return entry;
-    // implement reply log functions
-    //     ReplayLog replayLog;
-    //     int ReplayLog::addToLog(server::ClientRequestId clientRequestId) {
-    //    return -1;
-    }
-
-    // remove an log entry(and entries with older id) when ack is sent to client
-    // return -1 if the entry does not present in the log 
-   int ackLogEntry(clientID cid) {
+   int ReplayLog::ackLogEntry(server::ClientRequestId client_request_id) {
        return -1;
     }
 
-    /*
-     remove entires older than given age in seconds - used for garbage collection
-    */
-   void cleanOldLogEntry(time_t age) {
+   void ReplayLog::cleanOldLogEntry(time_t age) {}
 
-    }
-
-    // Print replay log contents
-    void printReplayLog() {
-        for (auto it=replayLog.begin(); it!=replayLog.end(); ++it){
-            std::cout << "    [ClientID, seqID] = [" <<
-                      it->first.ip << "::" << it->first.pid <<  "::" <<
-                      it->first.rid  << ", " << it->second << "]" << std::endl;
+   void ReplayLog::printRelayLogContent() {
+        for (auto client_entry_pair : client_list) {
+            std::cout << "for client " << client_entry_pair.first << std::endl;
+            replayLogEntry *client_entry = client_entry_pair.second;
+            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            for (it = client_entry->timestamp_list.begin(); it != client_entry->timestamp_list.end(); it++) {
+                std::cout << " " << (*it).seconds() << ":" << (*it).nanos() << std::endl;
+            }
         }
-    }
-   
+   }
 };
