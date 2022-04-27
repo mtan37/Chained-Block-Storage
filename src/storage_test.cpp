@@ -18,9 +18,9 @@ int main(int argc, char** argv) {
     snprintf(data, sizeof(data), "%15d", i);
 
     long offset = i*16;
-    Storage::write(data, offset, offsets);
+    Storage::write(data, offset, offsets, seq_num++);
     
-    Storage::commit(seq_num++, offsets, offset);
+    Storage::commit(seq_num, offsets, offset);
   }
   Storage::read(data, 0);
   for (int i = 0; i < 32; ++i) {
@@ -29,16 +29,16 @@ int main(int argc, char** argv) {
     snprintf(expected, sizeof(expected), "%15d", i);
     assert(strcmp(actual, expected) == 0);
   }
-
+  
   //test unaligned writes at end
   for (int i = 0; i < 32; ++i) {
     memset(data, 0, sizeof(data));
     snprintf(data + 4096 - 16, 16, "%15d", i);
 
     long offset = 4096 - i*16;
-    Storage::write(data, offset, offsets);
+    Storage::write(data, offset, offsets, seq_num++);
 
-    Storage::commit(seq_num++, offsets, offset);
+    Storage::commit(seq_num, offsets, offset);
   }
   Storage::read(data, 4096);
   for (int i = 0; i < 32; ++i) {

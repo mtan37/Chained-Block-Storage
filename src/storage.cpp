@@ -3,6 +3,7 @@
 #include <queue>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include <cmath>
 #include <cstring>
@@ -36,6 +37,13 @@ union metadata_block {
   int64_t indirect_block[NUM_INDIRECT];
   metadata_entry last_level_block[NUM_ENTRIES];
 };
+
+struct uncommitted_write {
+  std::vector<int64_t> to_free;
+  int64_t new_metadata_offset[2];
+};
+
+static std::unordered_map<int64_t, uncommitted_write*> uncommitted_writes; 
 
 static std::queue<int64_t> free_blocks;
 
@@ -134,6 +142,113 @@ static int64_t get_free_block_num() {
   return num;
 }
 
+static void write_metadata(uncommitted_write& uw, 
+                           int64_t sequence_number,
+                           int64_t file_offset[2],
+                           int64_t volume_offset) {
+  int64_t remainder = volume_offset % BLOCK_SIZE;
+
+  int num_file_blocks = 1;
+  if (remainder) {
+    num_file_blocks = 2;
+  }
+
+  metadata_block block[2][3];
+  int64_t old_block_nums[][4] = {{0,0,0,0},{0,0,0,0}};
+  int64_t offsets[][4] = {{0,0,0,0},{0,0,0,0}};
+  int64_t v_offsets[] = {volume_offset - remainder, 
+                         volume_offset - remainder + BLOCK_SIZE};
+  for (int i = 0; i < num_file_blocks; ++i) {
+    offsets[i][0] = get_first_level(v_offsets[i]);
+    offsets[i][1] = get_second_level(v_offsets[i]);
+    offsets[i][2] = get_third_level(v_offsets[i]);
+    offsets[i][3] = get_last_level(v_offsets[i]);
+    old_block_nums[i][0] = first_block.first_level_blocks[offsets[i][0]];
+    if (old_block_nums[i][0] != 0) {
+      read_block(&block[i][0], old_block_nums[i][0]);
+      old_block_nums[i][1] = block[i][0].indirect_block[offsets[i][1]];
+      if (old_block_nums[i][1] != 0) {
+        read_block(&block[i][1], old_block_nums[i][1]);
+        old_block_nums[i][2] = block[i][1].indirect_block[offsets[i][2]];
+        if (old_block_nums[i][2] != 0) {
+          read_block(&block[i][2], old_block_nums[i][2]);
+          old_block_nums[i][3] = block[i][2].last_level_block[offsets[i][3]].file_block_num;
+        }
+      }
+    }
+  }
+
+  for (int i = 0; i < 4; ++i) {
+    if (old_block_nums[0][i] != 0) {
+      uw.to_free.push_back(old_block_nums[0][i]);
+    }
+    if (old_block_nums[1][i] != 0 && old_block_nums[1][i] != old_block_nums[0][i]) {
+      uw.to_free.push_back(old_block_nums[1][i]);
+    }
+  }
+
+  int64_t new_block_nums[2][3];
+  for (int i = 0; i < num_file_blocks; ++i) {
+    if (old_block_nums[i][2] == 0) {
+      memset(&block[i][2], 0, BLOCK_SIZE);
+    }
+  }
+
+  if (offsets[0][2] == offsets[1][2]) { 
+    // the two blocks have the same metadata_blocks up to the third level
+    new_block_nums[0][2] = new_block_nums[1][2] = get_free_block_num();
+  }
+  else {
+    for (int i = 0; i < num_file_blocks; ++i) {
+      new_block_nums[i][2] = get_free_block_num();
+    }
+  }
+  for (int i = 0; i < num_file_blocks; ++i) {
+    block[i][2].last_level_block[offsets[i][3]].file_block_num = file_offset[i];
+    block[i][2].last_level_block[offsets[i][3]].last_updated = sequence_number;
+    if (offsets[0][2] == offsets[1][2]) { // only write once if the same
+      if (remainder) {
+        block[i][2].last_level_block[offsets[i+1][3]].file_block_num = file_offset[i+1];
+        block[i][2].last_level_block[offsets[i+1][3]].last_updated = sequence_number;
+      }
+      write_block(&block[i][2], new_block_nums[i][2]);
+      break;
+    }
+    write_block(&block[i][2], new_block_nums[i][2]);
+  }
+  
+  for (int i = 1; i >= 0; --i) {
+    for (int j = 0; j < num_file_blocks; ++j) {
+      if (old_block_nums[j][i] == 0) {
+        memset(&block[j][i], 0, BLOCK_SIZE);
+      }
+    }
+    if (offsets[0][i] == offsets[1][i]) {
+      new_block_nums[0][i] = new_block_nums[1][i] = get_free_block_num();
+    }
+    else {
+      for (int j = 0; j < num_file_blocks; ++j) {
+        new_block_nums[j][i] = get_free_block_num();
+      }
+    }
+    for (int j = 0; j < num_file_blocks; ++j) {
+      block[j][i].indirect_block[offsets[j][i]] = new_block_nums[j][i+1];
+      if (offsets[1][i] == offsets[1][i]) {
+        if (remainder) {
+          block[j][i].indirect_block[offsets[j+1][i]] = new_block_nums[j+1][i+1];
+        }
+        write_block(&block[j][i], new_block_nums[j][i]);
+        break;
+      }
+      write_block(&block[j][i], new_block_nums[j][i]);
+    }
+  }
+
+  for (int i = 0; i < 2; ++i) {
+    uw.new_metadata_offset[i] = new_block_nums[i][0];
+  }
+}
+
 namespace Storage {
 
 void open_volume(std::string volume_name) {
@@ -227,15 +342,15 @@ void init_volume(std::string volume_name) {
   }
 }
 
-void write(std::string buf, long volume_offset, long file_offset[2]) {
-  write(buf.data(), volume_offset, file_offset);
+void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
+  write(buf.data(), volume_offset, file_offset, sequence_number);
 }
 
-void write(std::vector<char> buf, long volume_offset, long file_offset[2]) {
-  write(&buf[0], volume_offset, file_offset);
+void write(std::vector<char> buf, long volume_offset, long file_offset[2], long sequence_number) {
+  write(&buf[0], volume_offset, file_offset, sequence_number);
 }
 
-void write(const char* buf, long volume_offset, long file_offset[2]) {
+void write(const char* buf, long volume_offset, long file_offset[2], long sequence_number) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   if (remainder) {
@@ -263,6 +378,13 @@ void write(const char* buf, long volume_offset, long file_offset[2]) {
     file_offset[0] = block_num;
     file_offset[1] = -1;
   }
+  
+  uncommitted_write* uw = new uncommitted_write;
+  write_metadata(*uw, sequence_number, file_offset, volume_offset);
+  if (uncommitted_writes.count(volume_offset) != 0) {
+    delete uncommitted_writes[volume_offset];
+  }
+  uncommitted_writes[volume_offset] = uw;
 }
 
 void read(std::string buf, long volume_offset) {
@@ -296,116 +418,26 @@ void read(char* buf, long volume_offset) {
 }
 
 void commit(long sequence_number, long file_offset[2], long volume_offset) {
+
+  uncommitted_write* uw = uncommitted_writes[volume_offset];
+  uncommitted_writes.erase(volume_offset);
+
   int64_t remainder = volume_offset % BLOCK_SIZE;
-
-  std::vector<int64_t> to_free;
-
-  int num_file_blocks = 1;
-  if (remainder) {
-    num_file_blocks = 2;
-  }
-
-  metadata_block block[2][3];
-  int64_t old_block_nums[][4] = {{0,0,0,0},{0,0,0,0}};
-  int64_t offsets[][4] = {{0,0,0,0},{0,0,0,0}};
-  int64_t v_offsets[] = {volume_offset - remainder, 
-                         volume_offset - remainder + BLOCK_SIZE};
-  for (int i = 0; i < num_file_blocks; ++i) {
-    offsets[i][0] = get_first_level(v_offsets[i]);
-    offsets[i][1] = get_second_level(v_offsets[i]);
-    offsets[i][2] = get_third_level(v_offsets[i]);
-    offsets[i][3] = get_last_level(v_offsets[i]);
-    old_block_nums[i][0] = first_block.first_level_blocks[offsets[i][0]];
-    if (old_block_nums[i][0] != 0) {
-      read_block(&block[i][0], old_block_nums[i][0]);
-      old_block_nums[i][1] = block[i][0].indirect_block[offsets[i][1]];
-      if (old_block_nums[i][1] != 0) {
-        read_block(&block[i][1], old_block_nums[i][1]);
-        old_block_nums[i][2] = block[i][1].indirect_block[offsets[i][2]];
-        if (old_block_nums[i][2] != 0) {
-          read_block(&block[i][2], old_block_nums[i][2]);
-          old_block_nums[i][3] = block[i][2].last_level_block[offsets[i][3]].file_block_num;
-        }
-      }
-    }
-  }
-
-  for (int i = 0; i < 4; ++i) {
-    if (old_block_nums[0][i] != 0) {
-      to_free.push_back(old_block_nums[0][i]);
-    }
-    if (old_block_nums[1][i] != 0 && old_block_nums[1][i] != old_block_nums[0][i]) {
-      to_free.push_back(old_block_nums[1][i]);
-    }
-  }
-
-  int64_t new_block_nums[2][3];
-  for (int i = 0; i < num_file_blocks; ++i) {
-    if (old_block_nums[i][2] == 0) {
-      memset(&block[i][2], 0, BLOCK_SIZE);
-    }
-  }
-
-  if (offsets[0][2] == offsets[1][2]) { 
-    // the two blocks have the same metadata_blocks up to the third level
-    new_block_nums[0][2] = new_block_nums[1][2] = get_free_block_num();
-  }
-  else {
-    for (int i = 0; i < num_file_blocks; ++i) {
-      new_block_nums[i][2] = get_free_block_num();
-    }
-  }
-  for (int i = 0; i < num_file_blocks; ++i) {
-    block[i][2].last_level_block[offsets[i][3]].file_block_num = file_offset[i];
-    block[i][2].last_level_block[offsets[i][3]].last_updated = sequence_number;
-    if (offsets[0][2] == offsets[1][2]) { // only write once if the same
-      if (remainder) {
-        block[i][2].last_level_block[offsets[i+1][3]].file_block_num = file_offset[i+1];
-        block[i][2].last_level_block[offsets[i+1][3]].last_updated = sequence_number;
-      }
-      write_block(&block[i][2], new_block_nums[i][2]);
-      break;
-    }
-    write_block(&block[i][2], new_block_nums[i][2]);
-  }
-  
-  for (int i = 1; i >= 0; --i) {
-    for (int j = 0; j < num_file_blocks; ++j) {
-      if (old_block_nums[j][i] == 0) {
-        memset(&block[j][i], 0, BLOCK_SIZE);
-      }
-    }
-    if (offsets[0][i] == offsets[1][i]) {
-      new_block_nums[0][i] = new_block_nums[1][i] = get_free_block_num();
-    }
-    else {
-      for (int j = 0; j < num_file_blocks; ++j) {
-        new_block_nums[j][i] = get_free_block_num();
-      }
-    }
-    for (int j = 0; j < num_file_blocks; ++j) {
-      block[j][i].indirect_block[offsets[j][i]] = new_block_nums[j][i+1];
-      if (offsets[1][i] == offsets[1][i]) {
-        if (remainder) {
-          block[j][i].indirect_block[offsets[j+1][i]] = new_block_nums[j+1][i+1];
-        }
-        write_block(&block[j][i], new_block_nums[j][i]);
-        break;
-      }
-      write_block(&block[j][i], new_block_nums[j][i]);
-    }
-  }
-
-  for (int i = 0; i < num_file_blocks; ++i) {
-    first_block.first_level_blocks[offsets[i][0]] = new_block_nums[i][0];
+  volume_offset -= remainder;
+  first_block.first_level_blocks[get_first_level(volume_offset)] = uw->new_metadata_offset[0];
+  if (uw->new_metadata_offset[1] != 0 && uw->new_metadata_offset[0] != uw->new_metadata_offset[1]) {
+    volume_offset += 4096;  
+    first_block.first_level_blocks[get_first_level(volume_offset)] = uw->new_metadata_offset[1];
   }
 
   first_block.last_committed = sequence_number;
   write_block(&first_block, 0);
 
-  for (int64_t num : to_free) {
+  for (int64_t num : uw->to_free) {
     free_blocks.push(num);
   }
+
+  delete uw;
 }
 
 long get_sequence_number() {
