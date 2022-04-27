@@ -96,15 +96,47 @@ namespace Tables {
 
     class ReplayLog {
         public:
-            // add client entry to log if it does not exist(and not already ack'ed)
-            // return -1 if the entry exist
+            /**
+             * @brief Add client entry to log if it 
+             *      does not exist(and not already ack'ed)
+             * 
+             * @return 0 if the request is good and an entry is added
+             *      -1 if the entry already exist
+             *      -2 if the request is too old
+             */
             int addToLog(server::ClientRequestId client_request_id);
-            // remove an log entry(and entries with older id) when ack is sent to client
-            // return -1 if the entry does not present in the log 
+
+            /**
+             * @brief Remove an log entry(and entries with older id) when 
+             *      ack is sent to client
+             * 
+             * @return 0 if the committed log is removed successfully
+             *      -1 if the entry does not present in the log
+             *      -2 if the entry is in the log, but not yet commited locally 
+             */
             int ackLogEntry(server::ClientRequestId client_request_id);
-            // remove entires older than given age in seconds
+            
+            /**
+             * @brief Used to mark an entry as commited(locally)
+             * 
+             * @return 0 if an uncommited log exist and is committed
+             *      -1 if the log does not exist
+             *      -2 if the log is already commited
+             */
+            int commitLogEntry(server::ClientRequestId client_request_id);
+
+            /**
+             * @brief Remove entires older than given age in seconds
+             * 
+             */
             void cleanOldLogEntry(time_t age);
+
+            /**
+             * @brief Print out the content of the replay log
+             * 
+             */
             void printRelayLogContent();
+
         private:
             struct replayLogEntry {
                 int test_val = 1;
