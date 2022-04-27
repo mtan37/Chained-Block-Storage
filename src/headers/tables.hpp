@@ -117,15 +117,6 @@ namespace Tables {
             int ackLogEntry(server::ClientRequestId client_request_id);
 
             /**
-             * @brief Used to mark an entry as commited(locally)
-             * 
-             * @return 0 if an uncommited log exist
-             *      -1 if the log does not exist
-             *      -2 if the log is already commited
-             */
-            int commitLogEntry(server::ClientRequestId client_request_id);
-
-            /**
              * @brief Remove entires older than given age in seconds
              * 
              */

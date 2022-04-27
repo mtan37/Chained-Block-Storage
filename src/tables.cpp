@@ -216,12 +216,10 @@ namespace Tables {
         client_entry->client_entry_mutex.unlock();
         return -1;
     }
+    
+    void ReplayLog::cleanOldLogEntry(time_t age) {
 
-    int commitLogEntry(server::ClientRequestId client_request_id) {
-        return -1;
     }
-
-    void ReplayLog::cleanOldLogEntry(time_t age) {}
 
     void ReplayLog::printRelayLogContent() {
         for (auto client_entry_pair : client_list) {
