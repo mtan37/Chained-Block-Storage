@@ -404,12 +404,9 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   first_block.last_committed = sequence_number;
   write_block(&first_block, 0);
 
-  std::cout << "freeing: "; 
   for (int64_t num : to_free) {
     free_blocks.push(num);
-    std::cout << num << " " ;
   }
-  std::cout << std::endl;
 }
 
 long get_sequence_number() {
