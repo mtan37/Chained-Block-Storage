@@ -114,14 +114,11 @@ void relay_write_background() {
 
 int main(int argc, char *argv[]) {
 
-    //Testing global tables
-    Tables::pendingQueueEntry entry;
-    Tables::pushPendingQueue(entry);
+    if (parse_args(argc, argv) < 0) return -1;
+    if (register_server() < 0) return -1;
     
     //Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
 
-    if (parse_args(argc, argv) < 0) return -1;
-    if (register_server() < 0) return -1;
     return 0;
 }

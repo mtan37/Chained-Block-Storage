@@ -12,6 +12,10 @@ grpc::Status server::MasterListenerImpl::HeartBeat (grpc::ServerContext *context
 grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *context,
     const server::ChangeModeRequest *request,
     server::ChangeModeReply *reply) {
-        // TODO 
+        
+        //TODO: Set prev/next node info (don't replace if empty request, case with new tail), change HEAD/MIDDLE/TAIL state
+        
+        //TODO: Handle sequence numbers and reply
+        
         return grpc::Status::OK;
 }

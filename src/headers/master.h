@@ -1,10 +1,16 @@
 #include "master.grpc.pb.h"
-using namespace std;
+#include <list>
 #pragma once
 
 namespace master {
     class NodeListenerImpl;
     class ClientListenerImpl;
+    
+    struct Node {
+      std::string ip;
+      std::string port;
+    };
+    extern std::list<Node> nodeList;
 }
 
 class master::NodeListenerImpl final : public master::NodeListener::Service {
