@@ -85,9 +85,9 @@ namespace Tables {
     void printSentList();
 
     struct googleTimestampComparator {
-        bool operator()(
+        bool operator() (
             const google::protobuf::Timestamp &t1, 
-            const google::protobuf::Timestamp &t2) {
+            const google::protobuf::Timestamp &t2) const {
             if (t1.seconds() < t2.seconds()) return true;
             else if (t1.seconds() == t2.seconds() && t1.nanos() < t2.nanos()) return true;
             return false;
