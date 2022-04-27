@@ -100,3 +100,20 @@ foreach(_target master)
     server_grpc_proto master_grpc_proto
   )
 endforeach()
+
+# compilre test objects
+# add executables to test directory
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
+foreach(_target replay_log_test)
+  add_executable(${_target} 
+    ./src/benchmarks/testing/${_target}_main.cpp
+    ./src/tables.cpp
+    ./src/headers/server.h
+    )
+
+  target_compile_options(${_target} PRIVATE -fPIC)
+
+  target_link_libraries(${_target}
+    server_grpc_proto
+  )
+endforeach()

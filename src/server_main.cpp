@@ -100,10 +100,7 @@ void relay_write_background() {
             
             //Add to replay log
             //TODO: This needs to be moved over to write()
-            Tables::replayLogEntry replayEntry;
-            replayEntry.first = pending_entry.reqId;
-            replayEntry.second = pending_entry.seqNum;
-            int addResult = Tables::pushReplayLog(replayEntry);
+            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
 
             if (addResult < 0) {}// means entry already exist in log or has been acked
             
