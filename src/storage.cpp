@@ -381,10 +381,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
   
   uncommitted_write* uw = new uncommitted_write;
   write_metadata(*uw, sequence_number, file_offset, volume_offset);
-  if (uncommitted_writes.count(volume_offset) != 0) {
-    delete uncommitted_writes[volume_offset];
-  }
-  uncommitted_writes[volume_offset] = uw;
+  uncommitted_writes[sequence_number] = uw;
 }
 
 void read(std::string buf, long volume_offset) {
@@ -418,9 +415,8 @@ void read(char* buf, long volume_offset) {
 }
 
 void commit(long sequence_number, long file_offset[2], long volume_offset) {
-
-  uncommitted_write* uw = uncommitted_writes[volume_offset];
-  uncommitted_writes.erase(volume_offset);
+  uncommitted_write* uw = uncommitted_writes[sequence_number];
+  uncommitted_writes.erase(sequence_number);
 
   int64_t remainder = volume_offset % BLOCK_SIZE;
   volume_offset -= remainder;

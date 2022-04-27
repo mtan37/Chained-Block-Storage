@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
   Storage::open_volume("storageTest.volume");
   char data[4096];
   
-  long seq_num = Storage::get_sequence_number() + 1;
+  long seq_num = Storage::get_sequence_number();
 
   //test unaligned writes at beginning
   long offsets[2];
@@ -18,7 +18,7 @@ int main(int argc, char** argv) {
     snprintf(data, sizeof(data), "%15d", i);
 
     long offset = i*16;
-    Storage::write(data, offset, offsets, seq_num++);
+    Storage::write(data, offset, offsets, ++seq_num);
     
     Storage::commit(seq_num, offsets, offset);
   }
@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
     snprintf(data + 4096 - 16, 16, "%15d", i);
 
     long offset = 4096 - i*16;
-    Storage::write(data, offset, offsets, seq_num++);
+    Storage::write(data, offset, offsets, ++seq_num);
 
     Storage::commit(seq_num, offsets, offset);
   }
