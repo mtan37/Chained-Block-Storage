@@ -115,7 +115,7 @@ namespace Tables {
              *      -2 if the entry is in the log, but not yet commited locally 
              */
             int ackLogEntry(server::ClientRequestId client_request_id);
-            
+
             /**
              * @brief Used to mark an entry as commited(locally)
              * 
@@ -141,7 +141,7 @@ namespace Tables {
             struct replayLogEntry {
                 int test_val = 1;
                 std::mutex client_entry_mutex;// mutext specific to modifying the client's entry
-                std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator> timestamp_list;
+                std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator> timestamp_list;
             };
             std::mutex new_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
