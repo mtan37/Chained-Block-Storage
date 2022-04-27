@@ -307,7 +307,7 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
 
   metadata_block block[2][3];
   int64_t old_block_nums[][3] = {{0,0,0},{0,0,0}};
-  int64_t offsets[2][4];
+  int64_t offsets[][4] = {{0,0,0,0},{0,0,0,0}};
   int64_t v_offsets[] = {volume_offset - remainder, 
                          volume_offset - remainder + BLOCK_SIZE};
   for (int i = 0; i < num_file_blocks; ++i) {
@@ -334,9 +334,9 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
     if (old_block_nums[i][2] == 0) {
       memset(&block[i][2], 0, BLOCK_SIZE);
     }
-    else {
-      to_free.push_back(block[i][2].last_level_block[offsets[i][2]].file_block_num);
-    }
+  }
+  if (old_block_nums[0][2] != 0) {
+    to_free.push_back(block[0][2].last_level_block[offsets[0][2]].file_block_num);
   }
   if (offsets[0][2] == offsets[1][2]) { 
     // the two blocks have the same metadata_blocks up to the third level
@@ -345,6 +345,9 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   else {
     for (int i = 0; i < num_file_blocks; ++i) {
       new_block_nums[i][2] = get_free_block_num();
+    }
+    if (old_block_nums[1][2] != 0) {
+      to_free.push_back(block[1][2].last_level_block[offsets[1][2]].file_block_num);
     }
   }
   for (int i = 0; i < num_file_blocks; ++i) {
@@ -366,9 +369,6 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
       if (old_block_nums[j][i] == 0) {
         memset(&block[j][i], 0, BLOCK_SIZE);
       }
-      else {
-        to_free.push_back(block[j][i].indirect_block[offsets[j][i]]);
-      }
     }
     if (offsets[0][i] == offsets[1][i]) {
       new_block_nums[0][i] = new_block_nums[1][i] = get_free_block_num();
@@ -377,6 +377,12 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
       for (int j = 0; j < num_file_blocks; ++j) {
         new_block_nums[j][i] = get_free_block_num();
       }
+    }
+    if (old_block_nums[0][i] != 0) {
+      to_free.push_back(block[0][i].indirect_block[offsets[0][i]]);
+    }
+    if (old_block_nums[1][i] != 0 && old_block_nums[1][i] != old_block_nums[0][i]) {
+        to_free.push_back(block[1][i].indirect_block[offsets[1][i]]);
     }
     for (int j = 0; j < num_file_blocks; ++j) {
       block[j][i].indirect_block[offsets[j][i]] = new_block_nums[j][i+1];
@@ -398,9 +404,12 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   first_block.last_committed = sequence_number;
   write_block(&first_block, 0);
 
+  std::cout << "freeing: "; 
   for (int64_t num : to_free) {
     free_blocks.push(num);
+    std::cout << num << " " ;
   }
+  std::cout << std::endl;
 }
 
 long get_sequence_number() {
