@@ -119,7 +119,7 @@ namespace Tables {
             /**
              * @brief Used to mark an entry as commited(locally)
              * 
-             * @return 0 if an uncommited log exist and is committed
+             * @return 0 if an uncommited log exist
              *      -1 if the log does not exist
              *      -2 if the log is already commited
              */
@@ -141,7 +141,8 @@ namespace Tables {
             struct replayLogEntry {
                 int test_val = 1;
                 std::mutex client_entry_mutex;// mutext specific to modifying the client's entry
-                std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator> timestamp_list;
+                std::map<google::protobuf::Timestamp,
+                    bool, Tables::googleTimestampComparator> timestamp_list;
             };
             std::mutex new_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
