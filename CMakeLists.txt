@@ -103,10 +103,10 @@ endforeach()
 
 # compilre test objects
 # add executables to test directory
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/tests)
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
 foreach(_target replay_log_test)
   add_executable(${_target} 
-    ./tests/${_target}_main.cpp
+    ./src/benchmarks/testing/${_target}_main.cpp
     ./src/tables.cpp
     ./src/headers/server.h
     )
