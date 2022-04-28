@@ -32,7 +32,8 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
         //TODO: Update metadata table / commit
         //TODO: Remove from sent list, depends on changing sentList data strcuture
         Tables::currentSeq = (int) request->seqnum();
-        Tables::nextSeq = Tables::currentSeq++;
+        //TODO: Get next node's sequence number
+        Tables::nextSeq = 0;
         
         //Relay to previous nodes
         string prev_node_address = server::upstream->ip + ":" + to_string(server::upstream->port);
