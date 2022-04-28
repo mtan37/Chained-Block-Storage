@@ -8,10 +8,19 @@ namespace server {
     class HeadServiceImpl;
     class TailServiceImpl;
     class NodeListenerImpl;
-    extern std::string next_node_ip;
-    extern std::string next_node_port;
-    extern std::string prev_node_ip;
-    extern std::string prev_node_port;
+
+    struct Node {
+        std::string ip;
+        int port;
+        std::unique_ptr<server::NodeListener::Stub> stub;
+    };
+
+//    extern std::string next_node_ip;
+//    extern std::string next_node_port;
+//    extern std::string prev_node_ip;
+//    extern std::string prev_node_port;
+    extern server::Node *downstream;
+    extern server::Node *upstream;
     enum State { HEAD, TAIL, MIDDLE, SINGLE, INITIALIZE };
     extern State state;
 }

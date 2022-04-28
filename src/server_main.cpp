@@ -20,10 +20,12 @@ string my_ip = "0.0.0.0";
 int my_port = Constants::SERVER_PORT;
 
 namespace server {
-    std::string next_node_ip;
-    std::string next_node_port;
-    std::string prev_node_ip;
-    std::string prev_node_port;
+    server::Node *downstream;
+    server::Node *upstream;
+//    std::string next_node_ip;
+//    std::string next_node_port;
+//    std::string prev_node_ip;
+//    std::string prev_node_port;
     State state;
 };
 
