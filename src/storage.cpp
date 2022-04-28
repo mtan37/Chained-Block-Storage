@@ -49,6 +49,8 @@ static std::queue<int64_t> free_blocks;
 
 static int fd;
 
+static int num_total_blocks;
+
 static int64_t get_first_level(int64_t offset) {
   offset /= NUM_ENTRIES;
   offset /= NUM_INDIRECT;
@@ -130,12 +132,8 @@ static void read_aligned(char* buf, long volume_offset) {
 
 static int64_t get_free_block_num() {
   if (free_blocks.size() == 0) {
-    off_t res = lseek(fd, 0, SEEK_END);
-    if (res == -1) {
-      perror("lseek");
-      exit(1);
-    }
-    return (res+1) / BLOCK_SIZE;
+    ++num_total_blocks;
+    return num_total_blocks;
   }
   int64_t num = free_blocks.front();
   free_blocks.pop();
@@ -232,10 +230,10 @@ static void write_metadata(uncommitted_write& uw,
       }
     }
     for (int j = 0; j < num_file_blocks; ++j) {
-      block[j][i].indirect_block[offsets[j][i]] = new_block_nums[j][i+1];
-      if (offsets[1][i] == offsets[1][i]) {
+      block[j][i].indirect_block[offsets[j][i+1]] = new_block_nums[j][i+1];
+      if (offsets[0][i] == offsets[1][i]) {
         if (remainder) {
-          block[j][i].indirect_block[offsets[j+1][i]] = new_block_nums[j+1][i+1];
+          block[j][i].indirect_block[offsets[j+1][i+1]] = new_block_nums[j+1][i+1];
         }
         write_block(&block[j][i], new_block_nums[j][i]);
         break;
@@ -259,11 +257,12 @@ void open_volume(std::string volume_name) {
     perror("lseek");
     exit(1);
   }
-  int64_t blocks_in_file = (res + 1) / BLOCK_SIZE;
+  num_total_blocks = (res + 1) / BLOCK_SIZE;
   
-  if (blocks_in_file == 0) {
+  if (num_total_blocks == 0) {
     memset(&first_block, 0, sizeof(first_block));
     write_block(&first_block, 0);
+    num_total_blocks = 1;
   }
   else {
     read_block(&first_block, 0);
@@ -314,7 +313,7 @@ void open_volume(std::string volume_name) {
   int used_idx = 0;
   int block_num = 1;
 
-  while (block_num < blocks_in_file) {
+  while (block_num < num_total_blocks) {
     if (used_idx < used_blocks.size() && block_num == used_blocks[used_idx]) {
       ++used_idx;
     }
@@ -330,6 +329,7 @@ void init_volume(std::string volume_name) {
 
   memset(&first_block, 0, sizeof(first_block));
   write_block(&first_block, 0);
+  num_total_blocks = 1;
   
   struct stat statbuf;
   if (fstat(fd, &statbuf) == -1) {
@@ -355,7 +355,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
 
   if (remainder) {
     int64_t offset = volume_offset - remainder;
-    char* buf1 = new char[BLOCK_SIZE];
+    char buf1[BLOCK_SIZE];
 
     int64_t block_num = get_free_block_num();
     read(buf1, offset);
@@ -369,8 +369,6 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     memcpy(buf1, buf + BLOCK_SIZE - remainder, remainder);
     write_block(buf1, block_num);
     file_offset[1] = block_num;
-
-    delete[] buf1;
   }
   else {
     int64_t block_num = get_free_block_num();
@@ -399,15 +397,14 @@ void read(char* buf, long volume_offset) {
 
   if (remainder) {
     int64_t offset = volume_offset - remainder;
-    char* buf1 = new char[BLOCK_SIZE];
+    char buf1[BLOCK_SIZE];
 
-    read_aligned(buf, offset);
+    read_aligned(buf1, offset);
+    memcpy(buf, buf1 + remainder, BLOCK_SIZE - remainder);
 
     offset += BLOCK_SIZE;
     read_aligned(buf1, offset);
-    memcpy(buf, buf1 + BLOCK_SIZE - remainder, remainder);
-
-    delete[] buf1;
+    memcpy(buf + BLOCK_SIZE - remainder, buf1, remainder);
   }
   else {
     read_aligned(buf, volume_offset);
