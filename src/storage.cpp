@@ -44,6 +44,7 @@ struct uncommitted_write {
 };
 
 static std::unordered_map<int64_t, uncommitted_write*> uncommitted_writes; 
+static std::unordered_map<int64_t, int64_t> pending_blocks;
 
 static std::queue<int64_t> free_blocks;
 
@@ -100,6 +101,10 @@ static void read_block(void* buf, long file_block_num) {
 }
 
 static void read_aligned(char* buf, long volume_offset) {
+  if (pending_blocks.count(volume_offset) != 0) {
+    read_block(buf, pending_blocks[volume_offset]);
+    return;
+  }
   int64_t block_num = first_block.first_level_blocks[get_first_level(volume_offset)];
   if (block_num == 0) {
     memset(buf, 0, BLOCK_SIZE);
@@ -362,6 +367,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     memcpy(buf1 + remainder, buf, BLOCK_SIZE - remainder);
     write_block(buf1, block_num);
     file_offset[0] = block_num;
+    pending_blocks[offset] = block_num;
 
     offset += BLOCK_SIZE;
     block_num = get_free_block_num();
@@ -369,12 +375,14 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     memcpy(buf1, buf + BLOCK_SIZE - remainder, remainder);
     write_block(buf1, block_num);
     file_offset[1] = block_num;
+    pending_blocks[offset] = block_num;
   }
   else {
     int64_t block_num = get_free_block_num();
     write_block(buf, block_num);
     file_offset[0] = block_num;
     file_offset[1] = -1;
+    pending_blocks[volume_offset] = block_num;
   }
   
   uncommitted_write* uw = new uncommitted_write;
@@ -418,9 +426,11 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
   volume_offset -= remainder;
   first_block.first_level_blocks[get_first_level(volume_offset)] = uw->new_metadata_offset[0];
+  pending_blocks.erase(volume_offset);
   if (uw->new_metadata_offset[1] != 0 && uw->new_metadata_offset[0] != uw->new_metadata_offset[1]) {
     volume_offset += 4096;  
     first_block.first_level_blocks[get_first_level(volume_offset)] = uw->new_metadata_offset[1];
+    pending_blocks.erase(volume_offset);
   }
 
   first_block.last_committed = sequence_number;

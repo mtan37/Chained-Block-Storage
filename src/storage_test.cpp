@@ -77,12 +77,66 @@ void test3() {
   }
 }
 
+void test4() {
+  char data[4096];
+  
+  long seq_num = Storage::get_sequence_number();
+
+  //test aligned read after write but no commit
+  long offsets[2];
+  long offset = 8*4096;
+  for (int i = 0; i < 4096/16; ++i) {
+    snprintf(data + 16*i, 16, "%15d", i);
+  }
+  Storage::write(data, offset, offsets, ++seq_num);
+  Storage::read(data, offset);
+  for (int i = 0; i < 4096/16; ++i) {
+    char* actual = data + 16*i;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "%15d", i);
+    assert(strcmp(actual, expected) == 0);
+  }
+
+}
+
+void test5() {
+  char data[4096];
+  
+  long seq_num = Storage::get_sequence_number();
+
+  //like test1 but do all writes bofore comitting
+  long offsets[32][2];
+  long sequence_numbers[32];
+  for (int i = 0; i < 32; ++i) {
+    memset(data, 0, sizeof(data));
+    snprintf(data, sizeof(data), "%15d", i);
+
+    long offset = 8*4096 + i*16;
+    Storage::write(data, offset, offsets[i], ++seq_num);
+    sequence_numbers[i] = seq_num;
+  }
+  for (int i = 0; i < 32; ++i) {
+    seq_num = sequence_numbers[i];
+    long offset = 8*4096 + i*16;
+    Storage::commit(seq_num, offsets[i], offset);
+  }
+  Storage::read(data, 8*4096);
+  for (int i = 0; i < 32; ++i) {
+    char* actual = data + 16*i;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "%15d", i);
+    assert(strcmp(actual, expected) == 0);
+  }
+}
+
 int main(int argc, char** argv) {
   Storage::open_volume("storageTest.volume");
 
   test1();
   test2();
   test3();
+  test4();
+  test5();
   
   std::cout << "All storage tests passed" << std::endl;
   return 0;
