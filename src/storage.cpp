@@ -79,7 +79,7 @@ static int64_t get_last_level(int64_t offset) {
 }
 
 static void init_storage(const char* filename) {
-  fd = open(filename, O_RDWR | O_CREAT | O_SYNC, S_IRUSR | S_IWUSR);
+  fd = open(filename, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
   if (fd == -1) {
     perror("open");
     exit(1);
@@ -420,7 +420,17 @@ void commit(long sequence_number, long file_offset[2], long volume_offset) {
   }
 
   first_block.last_committed = sequence_number;
+
+  // fsync twice to make sure that the actual data is persistent before modifying the metadata
+  if (fdatasync(fd) == -1) {
+    perror("fsync");
+    exit(1);
+  }
   write_block(&first_block, 0);
+  if (fdatasync(fd) == -1) {
+    perror("fsync");
+    exit(1);
+  }
 
   for (int64_t num : uw->to_free) {
     free_blocks.push(num);
