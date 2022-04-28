@@ -20,8 +20,8 @@ void write(std::vector<char> buf, long volume_offset, long file_offset[2], long 
 void write(const char* buf, long volume_offset, long file_offset[2], long sequence_number);
 
 // Read into buf from the volume. Only reads commited data
-void read(std::string buf, long volume_offset);
-void read(std::vector<char> buf, long volume_offset);
+void read(std::string& buf, long volume_offset);
+void read(std::vector<char>& buf, long volume_offset);
 void read(char* buf, long volume_offset);
 
 // Commit a write operation by modifying metadata and updating the most-resent

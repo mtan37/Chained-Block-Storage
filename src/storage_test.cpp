@@ -96,6 +96,7 @@ void test4() {
     snprintf(expected, sizeof(expected), "%15d", i);
     assert(strcmp(actual, expected) == 0);
   }
+  Storage::commit(seq_num, offsets, offset);
 
 }
 
@@ -129,6 +130,50 @@ void test5() {
   }
 }
 
+void test6() {
+  std::string in, out;
+  in.resize(4096);
+  long seq_num = Storage::get_sequence_number();
+ 
+  // test that read/write with c++ strings work
+  long offsets[2];
+  long offset = 0;
+  for (int i = 0; i < 4096/16; ++i) {
+    snprintf(in.data() + 16*i, 16, "%15d", i);
+  }
+  Storage::write(in, offset, offsets, ++seq_num);
+  Storage::commit(seq_num, offsets, offset);
+  Storage::read(out, offset);
+  for (int i = 0; i < 4096/16; ++i) {
+    char* actual = out.data() + 16*i;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "%15d", i);
+    assert(strcmp(actual, expected) == 0);
+  }
+}
+
+void test7() {
+  std::vector<char> in, out;
+  in.resize(4096);
+  long seq_num = Storage::get_sequence_number();
+ 
+  // test that read/write with c++ vectors work
+  long offsets[2];
+  long offset = 0;
+  for (int i = 0; i < 4096/16; ++i) {
+    snprintf(in.data() + 16*i, 16, "%15d", i);
+  }
+  Storage::write(in, offset, offsets, ++seq_num);
+  Storage::commit(seq_num, offsets, offset);
+  Storage::read(out, offset);
+  for (int i = 0; i < 4096/16; ++i) {
+    char* actual = out.data() + 16*i;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "%15d", i);
+    assert(strcmp(actual, expected) == 0);
+  }
+}
+
 int main(int argc, char** argv) {
   Storage::open_volume("storageTest.volume");
 
@@ -137,6 +182,8 @@ int main(int argc, char** argv) {
   test3();
   test4();
   test5();
+  test6();
+  test7();
   
   std::cout << "All storage tests passed" << std::endl;
   return 0;

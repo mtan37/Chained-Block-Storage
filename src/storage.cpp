@@ -376,12 +376,12 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
   uncommitted_writes[sequence_number] = uw;
 }
 
-void read(std::string buf, long volume_offset) {
+void read(std::string& buf, long volume_offset) {
   buf.resize(BLOCK_SIZE);
   read(buf.data(), volume_offset);
 }
 
-void read(std::vector<char> buf, long volume_offset) {
+void read(std::vector<char>& buf, long volume_offset) {
   buf.resize(BLOCK_SIZE);
   read(&buf[0], volume_offset);
 }
