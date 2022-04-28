@@ -146,7 +146,8 @@ namespace Tables {
                 // add the new client entry
                 replayLogEntry *new_entry = new replayLogEntry();
 
-                new_entry->timestamp_list.insert(client_request_id.timestamp());
+                new_entry->timestamp_list.insert(
+                    std::make_pair(client_request_id.timestamp(), false));
                 client_list.insert(std::make_pair(identifier, new_entry));
                 new_entry_mutex.unlock();
                 return 0; // first entry for a client added successfully
@@ -159,19 +160,22 @@ namespace Tables {
 
         // first check if the timestamp is and old timestamp
         if (client_entry->timestamp_list.size() > 0) {
-            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator>::iterator it;
             it = client_entry->timestamp_list.begin();
             Tables::googleTimestampComparator comp;
-            bool smaller_than_min = comp.operator()(client_request_id.timestamp(), (*it));
+            bool smaller_than_min = comp.operator()(client_request_id.timestamp(), (*it).first);
             if (smaller_than_min) return -2; //acked, smallest timestamp present in the list is greater
         }
         client_entry->client_entry_mutex.lock();
+
         // add the timestamp
-        std::pair<std::set<
+        std::pair<std::map<
             google::protobuf::Timestamp,
+            bool,
             Tables::googleTimestampComparator
             >::iterator,bool> insert_result = 
-            (client_entry->timestamp_list).insert(client_request_id.timestamp());
+            (client_entry->timestamp_list).insert(
+                std::make_pair(client_request_id.timestamp(), false));
         client_entry->client_entry_mutex.unlock();
 
         if (insert_result.second) {
@@ -182,19 +186,50 @@ namespace Tables {
        return -1;// existing entry
     }
 
-   int ReplayLog::ackLogEntry(server::ClientRequestId client_request_id) {
-       return -1;
+    int ReplayLog::ackLogEntry(server::ClientRequestId client_request_id) {
+        // locate the client entry
+        std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
+        std::unordered_map<std::string, 
+            replayLogEntry*>::const_iterator replay_log_it = 
+            client_list.find(identifier);
+        if (replay_log_it == client_list.end()) return -1;
+        replayLogEntry *client_entry = replay_log_it->second;
+
+        // locate the timestamp entry
+        client_entry->client_entry_mutex.lock();
+        std::map<google::protobuf::Timestamp,
+            bool, Tables::googleTimestampComparator>::iterator timestamp_it = 
+            client_entry->timestamp_list.find(client_request_id.timestamp());
+
+        if (timestamp_it == client_entry->timestamp_list.end()) {
+            client_entry->client_entry_mutex.unlock();
+            return -1;
+        }
+        
+        if (!timestamp_it->second) {
+            client_entry->client_entry_mutex.unlock();
+            return -2;
+        }
+
+        // remove the timestamp entry if it is committed
+        client_entry->timestamp_list.erase(timestamp_it);
+        client_entry->client_entry_mutex.unlock();
+        return -1;
     }
 
-   void ReplayLog::cleanOldLogEntry(time_t age) {}
+    int commitLogEntry(server::ClientRequestId client_request_id) {
+        return -1;
+    }
 
-   void ReplayLog::printRelayLogContent() {
+    void ReplayLog::cleanOldLogEntry(time_t age) {}
+
+    void ReplayLog::printRelayLogContent() {
         for (auto client_entry_pair : client_list) {
             std::cout << "for client " << client_entry_pair.first << std::endl;
             replayLogEntry *client_entry = client_entry_pair.second;
-            std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator>::iterator it;
+            std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator>::iterator it;
             for (it = client_entry->timestamp_list.begin(); it != client_entry->timestamp_list.end(); it++) {
-                std::cout << " " << (*it).seconds() << ":" << (*it).nanos() << std::endl;
+                std::cout << " " << (*it).first.seconds() << ":" << (*it).first.nanos() << std::endl;
             }
         }
    }

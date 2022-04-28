@@ -1,10 +1,22 @@
 #include "master.grpc.pb.h"
-using namespace std;
+#include <grpc++/grpc++.h>
+#include <list>
+#include "server.h"
+
 #pragma once
 
 namespace master {
     class NodeListenerImpl;
     class ClientListenerImpl;
+    
+    struct Node {
+      std::string ip;
+      int port;
+      std::unique_ptr<server::MasterListener::Stub> stub;
+    };
+    extern std::list<Node*> nodeList;
+    extern master::Node *head;
+    extern master::Node *tail;
 }
 
 class master::NodeListenerImpl final : public master::NodeListener::Service {

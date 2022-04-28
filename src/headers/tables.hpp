@@ -85,9 +85,9 @@ namespace Tables {
     void printSentList();
 
     struct googleTimestampComparator {
-        bool operator()(
+        bool operator() (
             const google::protobuf::Timestamp &t1, 
-            const google::protobuf::Timestamp &t2) {
+            const google::protobuf::Timestamp &t2) const {
             if (t1.seconds() < t2.seconds()) return true;
             else if (t1.seconds() == t2.seconds() && t1.nanos() < t2.nanos()) return true;
             return false;
@@ -96,20 +96,53 @@ namespace Tables {
 
     class ReplayLog {
         public:
-            // add client entry to log if it does not exist(and not already ack'ed)
-            // return -1 if the entry exist
+            /**
+             * @brief Add client entry to log if it 
+             *      does not exist(and not already ack'ed)
+             * 
+             * @return 0 if the request is good and an entry is added
+             *      -1 if the entry already exist
+             *      -2 if the request is too old
+             */
             int addToLog(server::ClientRequestId client_request_id);
-            // remove an log entry(and entries with older id) when ack is sent to client
-            // return -1 if the entry does not present in the log 
+
+            /**
+             * @brief Remove an log entry(and entries with older id) when 
+             *      ack is sent to client
+             * 
+             * @return 0 if the committed log is removed successfully
+             *      -1 if the entry does not present in the log
+             *      -2 if the entry is in the log, but not yet commited locally 
+             */
             int ackLogEntry(server::ClientRequestId client_request_id);
-            // remove entires older than given age in seconds
+
+            /**
+             * @brief Used to mark an entry as commited(locally)
+             * 
+             * @return 0 if an uncommited log exist
+             *      -1 if the log does not exist
+             *      -2 if the log is already commited
+             */
+            int commitLogEntry(server::ClientRequestId client_request_id);
+
+            /**
+             * @brief Remove entires older than given age in seconds
+             * 
+             */
             void cleanOldLogEntry(time_t age);
+
+            /**
+             * @brief Print out the content of the replay log
+             * 
+             */
             void printRelayLogContent();
+
         private:
             struct replayLogEntry {
                 int test_val = 1;
                 std::mutex client_entry_mutex;// mutext specific to modifying the client's entry
-                std::set<google::protobuf::Timestamp, Tables::googleTimestampComparator> timestamp_list;
+                std::map<google::protobuf::Timestamp,
+                    bool, Tables::googleTimestampComparator> timestamp_list;
             };
             std::mutex new_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
