@@ -1,4 +1,5 @@
 #include "server.grpc.pb.h"
+#include <grpc++/grpc++.h>
 using namespace std;
 #pragma once
 
@@ -11,7 +12,7 @@ namespace server {
     extern std::string next_node_port;
     extern std::string prev_node_ip;
     extern std::string prev_node_port;
-    enum State { HEAD, TAIL, MIDDLE, SINGLE };
+    enum State { HEAD, TAIL, MIDDLE, SINGLE, INITIALIZE };
     extern State state;
 }
 
