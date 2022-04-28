@@ -151,16 +151,16 @@ static void write_metadata(uncommitted_write& uw,
                            int64_t volume_offset) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
-  int num_file_blocks = 1;
-  if (remainder) {
-    num_file_blocks = 2;
-  }
+  int num_file_blocks = remainder ? 2 : 1; 
 
   metadata_block block[2][3];
+  memset(block, 0, sizeof(block));
   int64_t old_block_nums[][4] = {{0,0,0,0},{0,0,0,0}};
   int64_t offsets[][4] = {{0,0,0,0},{0,0,0,0}};
   int64_t v_offsets[] = {volume_offset - remainder, 
                          volume_offset - remainder + BLOCK_SIZE};
+
+  // read any metadata blocks that already exist
   for (int i = 0; i < num_file_blocks; ++i) {
     offsets[i][0] = get_first_level(v_offsets[i]);
     offsets[i][1] = get_second_level(v_offsets[i]);
@@ -190,60 +190,46 @@ static void write_metadata(uncommitted_write& uw,
     }
   }
 
+  // get new block numbers
   int64_t new_block_nums[2][3];
-  for (int i = 0; i < num_file_blocks; ++i) {
-    if (old_block_nums[i][2] == 0) {
-      memset(&block[i][2], 0, BLOCK_SIZE);
+  for (int j = 0; j < 3; ++j) {
+    if (offsets[0][j] == offsets[1][j]) { 
+      // It is not possible to have a case where the offsets match but the
+      // block nums should be different because of the tree structure and
+      // the fact that offsets can differ by at most 1 (mod the number of
+      // things per block)
+      new_block_nums[0][j] = new_block_nums[1][j] = get_free_block_num();
+    }
+    else {
+      for (int i = 0; i < num_file_blocks; ++i) {
+        new_block_nums[i][j] = get_free_block_num();
+      }
     }
   }
 
-  if (offsets[0][2] == offsets[1][2]) { 
-    // the two blocks have the same metadata_blocks up to the third level
-    new_block_nums[0][2] = new_block_nums[1][2] = get_free_block_num();
-  }
-  else {
-    for (int i = 0; i < num_file_blocks; ++i) {
-      new_block_nums[i][2] = get_free_block_num();
-    }
-  }
-  for (int i = 0; i < num_file_blocks; ++i) {
-    block[i][2].last_level_block[offsets[i][3]].file_block_num = file_offset[i];
-    block[i][2].last_level_block[offsets[i][3]].last_updated = sequence_number;
-    if (offsets[0][2] == offsets[1][2]) { // only write once if the same
-      if (remainder) {
-        block[i][2].last_level_block[offsets[i+1][3]].file_block_num = file_offset[i+1];
-        block[i][2].last_level_block[offsets[i+1][3]].last_updated = sequence_number;
-      }
-      write_block(&block[i][2], new_block_nums[i][2]);
-      break;
-    }
-    write_block(&block[i][2], new_block_nums[i][2]);
+  // updata last level block(s)
+  block[0][2].last_level_block[offsets[0][3]].file_block_num = file_offset[0];
+  block[0][2].last_level_block[offsets[0][3]].last_updated = sequence_number;
+  if (remainder) {
+    int i = (offsets[0][2] == offsets[1][2]) ? 0 : 1;
+    block[i][2].last_level_block[offsets[i+1][3]].file_block_num = file_offset[1];
+    block[i][2].last_level_block[offsets[i+1][3]].last_updated = sequence_number;
   }
   
+  // updata indirect block(s)
   for (int i = 1; i >= 0; --i) {
-    for (int j = 0; j < num_file_blocks; ++j) {
-      if (old_block_nums[j][i] == 0) {
-        memset(&block[j][i], 0, BLOCK_SIZE);
-      }
+    block[0][i].indirect_block[offsets[0][i+1]] = new_block_nums[0][i+1];
+    if (remainder) {
+      int j = (offsets[0][i] == offsets[1][i]) ? 0 : 1;
+      block[j][i].indirect_block[offsets[1][i+1]] = new_block_nums[1][i+1];
     }
-    if (offsets[0][i] == offsets[1][i]) {
-      new_block_nums[0][i] = new_block_nums[1][i] = get_free_block_num();
-    }
-    else {
-      for (int j = 0; j < num_file_blocks; ++j) {
-        new_block_nums[j][i] = get_free_block_num();
-      }
-    }
-    for (int j = 0; j < num_file_blocks; ++j) {
-      block[j][i].indirect_block[offsets[j][i+1]] = new_block_nums[j][i+1];
-      if (offsets[0][i] == offsets[1][i]) {
-        if (remainder) {
-          block[j][i].indirect_block[offsets[j+1][i+1]] = new_block_nums[j+1][i+1];
-        }
-        write_block(&block[j][i], new_block_nums[j][i]);
-        break;
-      }
-      write_block(&block[j][i], new_block_nums[j][i]);
+  }
+
+  // write new blocks to disk
+  for (int j = 0; j < 3; ++j) {
+    write_block(&block[0][j], new_block_nums[0][j]);
+    if (offsets[0][j] != offsets[1][j]) {
+      write_block(&block[1][j], new_block_nums[1][j]);
     }
   }
 
