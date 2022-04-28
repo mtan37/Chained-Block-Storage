@@ -22,7 +22,7 @@ grpc::Status master::NodeListenerImpl::Register (
         tail.set_ip(tailNode.ip);
         tail.set_port(stoi(tailNode.port));
         
-        reply->setprevaddr(tail);
+        reply->set_prevaddr(tail);
         
         string tail_addr = tailNode.ip + ":" + tailNode.port;
         grpc::ChannelArguments args;
@@ -33,7 +33,7 @@ grpc::Status master::NodeListenerImpl::Register (
         server::ChangeModeReply ChangeModeReply;
         
         server::ChangeModeRequest changemode_request;
-        //TODO: Set new node info in request
+        changemode_request.set_nextaddr(serverIp);
         //TODO: Handle sequence numbers
         
         grpc::Status status = tail_stub->ChangeMode(&changemode_context, changemode_request, &ChangeModeReply);

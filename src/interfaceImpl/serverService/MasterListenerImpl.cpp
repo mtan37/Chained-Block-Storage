@@ -14,6 +14,22 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     server::ChangeModeReply *reply) {
         
         //TODO: Set prev/next node info (don't replace if empty request, case with new tail), change HEAD/MIDDLE/TAIL state
+
+
+        if (request->has_prevaddr()) {
+            server::ServerIp prevNode = request->prevaddr();
+            server::prev_node_ip = prevNode.ip();
+            server::prev_node_port = prevNode.port();
+        }
+        if (request->has_nextaddr()) {
+            server::ServerIp nextNode = request->nextaddr();
+            server::next_node_ip = nextNode.ip();
+            server::next_node_port = nextNode.port();
+        }
+        if (request->has_prevaddr() && !request->has_nextaddr()) server::state = server::TAIL;
+        if (!request->has_prevaddr() && request->has_nextaddr()) server::state = server::HEAD;
+        if (!request->has_prevaddr() && !request->has_nextaddr()) server::state = server::SINGLE;
+        if (request->has_prevaddr() && request->has_nextaddr()) server::state = server::MIDDLE;
         
         //TODO: Handle sequence numbers and reply
         
