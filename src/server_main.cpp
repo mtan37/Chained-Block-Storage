@@ -20,18 +20,49 @@ string my_ip = "0.0.0.0";
 int my_port = Constants::SERVER_PORT;
 
 namespace server {
-    server::Node *downstream;
-    server::Node *upstream;
+    server::Node downstream;
+    server::Node upstream;
 //    std::string next_node_ip;
 //    std::string next_node_port;
 //    std::string prev_node_ip;
 //    std::string prev_node_port;
     State state;
+
+    string get_state() {
+        switch (server::state) {
+            case server::HEAD:
+                return "Head";
+                break;
+            case server::TAIL:
+                return "Tail";
+                break;
+            case server::MIDDLE:
+                return "Mid";
+                break;
+            case server::SINGLE:
+                return "Single Server";
+                break;
+            case server::INITIALIZE:
+                return "Initializing";
+                break;
+            case server::TRANSITION:
+                return "Transitioning";
+                break;
+        }
+    };
 };
 
 
 
+/**
+ * Server will come up either in single node state or as intializing then tail
+ * Not totally sure how this is going to work yet
+ * @return
+ */
 int register_server() {
+    // Set our state
+
+
     // call master to register self - build channel and stub
     string master_address = master_ip + ":" + Constants::MASTER_PORT;
     grpc::ChannelArguments args;
@@ -45,7 +76,7 @@ int register_server() {
     master::ServerIp * serverIP = request.mutable_server_ip();
     serverIP->set_ip(my_ip);
     serverIP->set_port(my_port);
-//    request.mutable_
+
     // hold reply
     master::RegisterReply reply;
     grpc::Status status = master_stub->Register(&context, request, &reply);
@@ -57,21 +88,29 @@ int register_server() {
         cout << "Was able to contact master" << endl;
     }
 
+    // Building communication with current tail
     if (reply.has_prev_addr()) {
-        cout << "Was sent tail IP" << endl;
-        server::state = server::INITIALIZE;
-    } else {
-        cout << "Was not sent tail IP" << endl;
+        //TODO: Deal with bootstraping volume here - this actually probably wont work
+        // just like this.  The true tail will need to communicate  with this node
+        // to bring it up to speed, and while it does it will need to pause
+        // and then we will need to set this node to tail and the old tail to mid
+
+        master::ServerIp prev_addy_ip = reply.prev_addr();
+        server::upstream.ip =  prev_addy_ip.ip();
+        server::upstream.port =  prev_addy_ip.port();
+        //build channel stub to upstream
+        string node_addr(server::upstream.ip + ":" + to_string(server::upstream.port));
+        grpc::ChannelArguments args;
+        args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
+        server::upstream.stub = server::NodeListener::NewStub(channel);
+        //TODO: Test this connection works
+        server::state = server::TAIL;
+    } else { // Starting in single server mode
         server::state = server::SINGLE;
     }
 
-    cout << "My state is " << server::state << endl;
-
-//    master::ServerIp tail_ip;
-//    tail_ip = reply.server_ip();
-    //TODO: Get prev node ip and port from master
-
-    
+    cout << "My state is " << server::get_state() << endl;
     return 0;
 }
 
@@ -161,13 +200,13 @@ int parse_args(int argc, char** argv){
 }
 
 // Run grpc service in a loop
-void run_service2(grpc::Server *server, std::string serviceName) {
-    std::cout << "Starting to run " << serviceName << "\n";
+void run_service(grpc::Server *server, std::string serviceName) {
+    std::cout << "Starting to " << serviceName << "\n";
     server->Wait();
 }
 
 int main(int argc, char *argv[]) {
-
+    server::state = server::INITIALIZE;
     if (parse_args(argc, argv) < 0) return -1;
     if (register_server() < 0) return -1;
     
@@ -183,7 +222,7 @@ int main(int argc, char *argv[]) {
     masterListenerBuilder.RegisterService(&myMasterListen);
     std::unique_ptr<grpc::Server> masterListener(masterListenerBuilder.BuildAndStart());
 ////     Thread server out and start listening
-    std::thread masterListener_service_thread(run_service2, masterListener.get(), "Master Listener");
+    std::thread masterListener_service_thread(run_service, masterListener.get(), "Listen to Master");
 ////    std::cout << "Starting to run master listener" << "\n";
 ////    masterListener->Wait();
 //
