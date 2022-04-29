@@ -64,14 +64,15 @@ endforeach()
 # add executables to root directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
-
 include_directories(src/headers)
+# add all the table implementations
+FILE(GLOB TableImpls ./src/tablesImpl/*.cpp)
 
 # c++ targets
 foreach(_target server)
   add_executable(${_target} 
     ./src/${_target}_main.cpp
-    ./src/tables.cpp
+    ${TableImpls}
     ./src/headers/server.h
     ./src/interfaceImpl/serverService/HeadServiceImpl.cpp
     ./src/interfaceImpl/serverService/TailServiceImpl.cpp
@@ -109,7 +110,7 @@ set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing
 foreach(_target replay_log_test)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
-    ./src/tables.cpp
+    ${TableImpls}
     ./src/headers/server.h
     )
 

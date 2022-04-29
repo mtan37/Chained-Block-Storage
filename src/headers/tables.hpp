@@ -64,7 +64,6 @@ namespace Tables {
 
     // Data structures
     struct sentListItem {
-       //int seqNum; // Seq num is the key itself
        int volumeOffset = -1;
        int fileOffset[2] = {-1,-1};
     };
