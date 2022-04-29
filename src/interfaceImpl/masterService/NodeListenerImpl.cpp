@@ -6,7 +6,7 @@
 using namespace std;
 
 /**
- * Nodes need to register with server to get added to the chain. When it regestires the
+ * Nodes need to register with server to get added to the chain. When it registers the
  * master needs to update its nodelist with the new server at back (acting as future new tail)
  * @param context
  * @param request
@@ -22,23 +22,26 @@ grpc::Status master::NodeListenerImpl::Register (
         master::ServerIp serverIP = request->server_ip();
         newNode->ip = serverIP.ip();
         newNode->port = serverIP.port();
-
+        cout << "Building new node at " << newNode->ip + ":" + to_string(newNode->port) << endl;
         // setup channel
         string node_addr(newNode->ip + ":" + to_string(newNode->port));
         grpc::ChannelArguments args;
         args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
         newNode->stub = server::MasterListener::NewStub(channel);
-        // Push to nodeList;
+
+        // Push to nodeList
+        master::nodeList_mtx.lock();
         master::nodeList.push_back(newNode);
+        master::nodeList_mtx.unlock();
 
         // If first server
         if (master::nodeList.size() == 1){
-            cout << "Cluster initializing" << endl;
             // Only node on list
             master::head = newNode;
             master::tail = newNode;
         } else {
+
             // Set reply from master
             master::ServerIp * reply_addr = reply->mutable_prev_addr();
             reply_addr->set_ip(master::tail->ip);
@@ -58,13 +61,16 @@ grpc::Status master::NodeListenerImpl::Register (
             grpc::Status status = tail->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
 
             if (!status.ok()) {
-                cout << "Failed to relay write ack to next node" << endl;
+                cout << "Error: Failed to relay write ack to next node" << endl;
                 //TODO: Retry?
             } else {
-                cout  << "Sent ChangeMode to tail" << endl;
+                cout  << "...Tail has been notified of its new status" << endl;
             }
 
+            master::tail = newNode;
         }
+
+        cout  << "...New node is now tail" << endl;
         
         return grpc::Status::OK;
 }

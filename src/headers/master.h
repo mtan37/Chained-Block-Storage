@@ -14,9 +14,11 @@ namespace master {
       int port;
       std::unique_ptr<server::MasterListener::Stub> stub;
     };
+    const int HEARTBEAT = 5;
     extern std::list<Node*> nodeList;
     extern master::Node *head;
     extern master::Node *tail;
+    extern std::mutex nodeList_mtx;
 }
 
 class master::NodeListenerImpl final : public master::NodeListener::Service {
