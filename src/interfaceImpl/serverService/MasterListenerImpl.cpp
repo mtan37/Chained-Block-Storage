@@ -51,31 +51,31 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
 
 
         if (request->has_prev_addr()) {
-            server::upstream.ip =  request->prev_addr().ip();
-            server::upstream.port =  request->prev_addr().port();
+            server::upstream->ip =  request->prev_addr().ip();
+            server::upstream->port =  request->prev_addr().port();
             // build communication channel
-            string node_addr(server::upstream.ip + ":" + to_string(server::upstream.port));
+            string node_addr(server::upstream->ip + ":" + to_string(server::upstream->port));
             grpc::ChannelArguments args;
             args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
             std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
-            server::upstream.stub = server::NodeListener::NewStub(channel);
+            server::upstream->stub = server::NodeListener::NewStub(channel);
         }
         if (request->has_next_addr()) {
-            server::downstream.ip =  request->next_addr().ip();
-            server::downstream.port =  request->next_addr().port();
+            server::downstream->ip =  request->next_addr().ip();
+            server::downstream->port =  request->next_addr().port();
             // Build communication channel
-            string node_addr(server::downstream.ip + ":" + to_string(server::downstream.port));
+            string node_addr(server::downstream->ip + ":" + to_string(server::downstream->port));
             grpc::ChannelArguments args;
             args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
             std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
-            server::downstream.stub = server::NodeListener::NewStub(channel);
+            server::downstream->stub = server::NodeListener::NewStub(channel);
         }
 
         // We may need additional info for failure scenarios
-        if (server::upstream.ip != "" && server::downstream.ip == "") server::state = server::TAIL;
-        if (server::upstream.ip == "" && server::downstream.ip != "") server::state = server::HEAD;
-        if (server::upstream.ip != "" && server::downstream.ip != "") server::state = server::MIDDLE;
-        if (server::upstream.ip == "" && server::downstream.ip == "") server::state = server::SINGLE;
+        if (server::upstream->ip != "" && server::downstream->ip == "") server::state = server::TAIL;
+        if (server::upstream->ip == "" && server::downstream->ip != "") server::state = server::HEAD;
+        if (server::upstream->ip != "" && server::downstream->ip != "") server::state = server::MIDDLE;
+        if (server::upstream->ip == "" && server::downstream->ip == "") server::state = server::SINGLE;
 
 
         cout << "...New state = " << server::get_state() << endl;

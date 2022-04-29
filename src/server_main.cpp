@@ -20,12 +20,8 @@ string my_ip = "0.0.0.0";
 int my_port = Constants::SERVER_PORT;
 
 namespace server {
-    server::Node downstream;
-    server::Node upstream;
-//    std::string next_node_ip;
-//    std::string next_node_port;
-//    std::string prev_node_ip;
-//    std::string prev_node_port;
+    server::Node *downstream;
+    server::Node *upstream;
     State state;
 
     string get_state() {
@@ -61,15 +57,14 @@ namespace server {
  */
 int register_server() {
     // Set our state
-
+    server::downstream = new server::Node;
+    server::upstream = new server::Node;
 
     // call master to register self - build channel and stub
     string master_address = master_ip + ":" + Constants::MASTER_PORT;
     grpc::ChannelArguments args;
     args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
-    std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
-    std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
-    grpc::ClientContext context;
+
 
     // Need to set our own IP here to send into request
     master::RegisterRequest request;
@@ -79,14 +74,21 @@ int register_server() {
 
     // hold reply
     master::RegisterReply reply;
-    grpc::Status status = master_stub->Register(&context, request, &reply);
-    // Check return status on register call
-    if (!status.ok()) {
-        cout << "Can't contact master at " << master_address << endl;
-        return -1;
-    } else {
-        cout << "Was able to contact master" << endl;
+    while (true){
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
+        std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
+        grpc::ClientContext context;
+        grpc::Status status = master_stub->Register(&context, request, &reply);
+        // Check return status on register call
+        if (!status.ok()) {
+            cout << "Can't contact master at " << master_address << endl;
+            sleep(1);
+        } else {
+            cout << "Was able to contact master" << endl;
+            break;
+        }
     }
+
 
     // Building communication with current tail
     if (reply.has_prev_addr()) {
@@ -96,14 +98,14 @@ int register_server() {
         // and then we will need to set this node to tail and the old tail to mid
 
         master::ServerIp prev_addy_ip = reply.prev_addr();
-        server::upstream.ip =  prev_addy_ip.ip();
-        server::upstream.port =  prev_addy_ip.port();
+        server::upstream->ip =  prev_addy_ip.ip();
+        server::upstream->port =  prev_addy_ip.port();
         //build channel stub to upstream
-        string node_addr(server::upstream.ip + ":" + to_string(server::upstream.port));
+        string node_addr(server::upstream->ip + ":" + to_string(server::upstream->port));
         grpc::ChannelArguments args;
         args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
-        server::upstream.stub = server::NodeListener::NewStub(channel);
+        server::upstream->stub = server::NodeListener::NewStub(channel);
         //TODO: Test this connection works
         server::state = server::TAIL;
     } else { // Starting in single server mode
@@ -116,51 +118,53 @@ int register_server() {
 
 void relay_write_background() {
     while(true) {
-//        if ( Tables::pendingQueueSize() ) {
-//            Tables::pendingQueueEntry pending_entry = Tables::popPendingQueue();
-//            if (server::state != server::TAIL) {
-//                string next_node_address = server::next_node_ip + ":" + server::next_node_port;
-//                grpc::ChannelArguments args;
-//                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
-//                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(next_node_address, grpc::InsecureChannelCredentials(), args);
-//                std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
-//                grpc::ClientContext context;
-//                server::RelayWriteRequest request;
-//
-//                request.set_data(pending_entry.data);
-//                request.set_offset(pending_entry.volumeOffset);
-//                request.set_seqnum(pending_entry.seqNum);
-//                google::protobuf::Empty RelayWriteReply;
-//
-//                grpc::Status status = next_node_stub->RelayWrite(&context, request, &RelayWriteReply);
-//
-//                if (!status.ok()) {
-//                    cout << "Failed to relay write to next node" << endl;
-//                    //TODO: Retry? Or put back on the pending queue
-//                }
-//            } //End forwarding if non-tail
-//
-//            //TODO: write locally
-//
-//            //Add to sent list
-//            Tables::sentListEntry sent_entry;
-//            sent_entry.second.volumeOffset = pending_entry.volumeOffset;
-//            //TODO: Where does file offset come from?
-////            sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
-//            sent_entry.first = pending_entry.seqNum;
-//            Tables::pushSentList(sent_entry);
-//
-//            //Add to replay log
-//            //TODO: This needs to be moved over to write()
-//            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
-//
-//            if (addResult < 0) {}// means entry already exist in log or has been acked
-//
-//            if (server::state == server::TAIL) {
-//                //TODO: commit
-//                //TODO: send an ack backwards?
-//            }
-//        }
+        if ( Tables::pendingQueueSize() ) {
+            Tables::pendingQueueEntry pending_entry = Tables::popPendingQueue();
+            if (server::state != server::TAIL) {
+                string next_node_address = server::downstream->ip + ":" + to_string(server::downstream->port);
+                grpc::ChannelArguments args;
+                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(next_node_address, grpc::InsecureChannelCredentials(), args);
+                std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
+                grpc::ClientContext context;
+                server::RelayWriteRequest request;
+
+                request.set_data(pending_entry.data);
+                request.set_offset(pending_entry.volumeOffset);
+                request.set_seqnum(pending_entry.seqNum);
+                google::protobuf::Empty RelayWriteReply;
+
+                grpc::Status status = next_node_stub->RelayWrite(&context, request, &RelayWriteReply);
+
+                if (!status.ok()) {
+                    cout << "Failed to relay write to next node" << endl;
+                    //TODO: Retry? Or put back on the pending queue
+                }
+            } //End forwarding if non-tail
+
+            //TODO: write locally
+
+            //Add to sent list
+            Tables::sentListEntry sent_entry;
+            Tables::sentListItem sent_item;
+            sent_item.volumeOffset = pending_entry.volumeOffset;
+            //TODO: Where does file offset come from?
+            sent_item.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
+            sent_entry.first = pending_entry.seqNum;
+            sent_entry.second = sent_item;
+            Tables::pushSentList(sent_entry);
+
+            //Add to replay log
+            //TODO: This needs to be moved over to write()
+            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
+
+            if (addResult < 0) {}// means entry already exist in log or has been acked
+
+            if (server::state == server::TAIL) {
+                //TODO: commit
+                //TODO: send an ack backwards?
+            }
+        }
     }
 }
 
@@ -228,5 +232,7 @@ int main(int argc, char *argv[]) {
 //
     masterListener_service_thread.join();
     relay_write_thread.join();
+    delete server::downstream;
+    delete server::upstream;
     return 0;
 }

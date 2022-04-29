@@ -91,13 +91,13 @@ int main(int argc, char const *argv[]) {
     std::thread nodeListener_service_thread(run_service, nodeListener.get(), "Listen to Nodes");
 
     // Launch client listener, replies to client with chain details (head, tail)
-//    master::ClientListenerImpl clientListenerImpl;
-//    grpc::ServerBuilder clientListenerBuilder;
-//    clientListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-//    clientListenerBuilder.RegisterService(&clientListenerImpl);
-//    std::unique_ptr<grpc::Server> clientListener(clientListenerBuilder.BuildAndStart());
-//
-//    std::thread clientListener_service_thread(run_service, clientListener.get(), "ClientListener");
+    master::ClientListenerImpl clientListenerImpl;
+    grpc::ServerBuilder clientListenerBuilder;
+    clientListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    clientListenerBuilder.RegisterService(&clientListenerImpl);
+    std::unique_ptr<grpc::Server> clientListener(clientListenerBuilder.BuildAndStart());
+
+    std::thread clientListener_service_thread(run_service, clientListener.get(), "ClientListener");
 
     // Need to launch heartbeat communication with each registered node
     // Heartbeat is fine with one node, but with two fails on the second node for some reason

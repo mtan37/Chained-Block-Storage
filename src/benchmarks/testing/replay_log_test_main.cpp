@@ -74,6 +74,46 @@ int ackUncommitedEntries () {
     return 0;
 }
 
+int ackCommitedEntries () {
+    for (int i = 0; i < 10; i++) {
+        server::ClientRequestId client_id;
+        client_id.set_ip("2.1.1.1");
+        client_id.set_pid(23636);
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+        time->set_seconds(tv.tv_sec);
+        time->set_nanos(tv.tv_usec * 1000);
+        int add_result_success = Tables::replayLog.addToLog(client_id);
+        if (add_result_success < 0) {
+            cout<<"ackCommitedEntries: add to log failed when it should success"<<endl;
+            return -1;
+        }
+
+        // mark entry as committed
+        int commit_result_uncommitted = Tables::replayLog.commitLogEntry(client_id);
+        // mark the entry again
+        int commit_result_committed = Tables::replayLog.commitLogEntry(client_id);
+        if (commit_result_uncommitted != 0) {
+            cout<<"ackCommitedEntries: returns error when commit an uncommited log"<<endl;
+            cout << "returned " << commit_result_uncommitted << " instead of " << 0 << endl;
+            return -1;
+        } else if (commit_result_committed != -2) {
+            cout<<"ackCommitedEntries: returns wrong error code when commit an existing, commited log"<<endl;
+            cout << "returned " << commit_result_committed << " instead of " << -2 << endl;
+            return -1;
+        }
+
+        // ack the request
+        int ack_result = Tables::replayLog.ackLogEntry(client_id);
+        if (ack_result != 0) {
+            cout<<"ackCommitedEntries: returns error when ack existing, commited log"<<endl;
+            return -1;
+        }
+    }
+    return 0;
+}
+
 int ackNonExistEntries () {
     server::ClientRequestId client_id;
     client_id.set_ip("7.1.1.1");
@@ -133,6 +173,9 @@ int main(int argc, char *argv[]) {
 
     if (ackUncommitedEntries() < 0) cout << "ackUncommitedEntries test did not pass" << endl;
     else cout << "ackUncommitedEntries test successful!" << endl;
+
+    if (ackCommitedEntries() < 0) cout << "ackCommitedEntries test did not pass" << endl;
+    else cout << "ackCommitedEntries test successful!" << endl;
 
     if (ackNonExistEntries() < 0) cout << "ackNonExistEntries test did not pass" << endl;
     else cout << "ackNonExistEntries test successful!" << endl;

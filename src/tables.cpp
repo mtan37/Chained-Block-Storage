@@ -214,14 +214,36 @@ namespace Tables {
         // remove the timestamp entry if it is committed
         client_entry->timestamp_list.erase(timestamp_it);
         client_entry->client_entry_mutex.unlock();
-        return -1;
+        return 0;
+    }
+    
+    int ReplayLog::commitLogEntry(server::ClientRequestId client_request_id) {
+        // locate the client entry
+        std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
+        std::unordered_map<std::string, 
+            replayLogEntry*>::const_iterator replay_log_it = 
+            client_list.find(identifier);
+        if (replay_log_it == client_list.end()) return -1;
+        replayLogEntry *client_entry = replay_log_it->second;
+
+        // locate the timestamp entry
+        // Then modifies the commit flag. This section is NOT LOCKED
+        // since we assume no two thread will try to commit the same request
+        // at the same time
+        std::map<google::protobuf::Timestamp,
+            bool, Tables::googleTimestampComparator>::iterator timestamp_it = 
+            client_entry->timestamp_list.find(client_request_id.timestamp());
+
+        if (timestamp_it == client_entry->timestamp_list.end()) return -1;
+        if (timestamp_it->second) return -2; // already committed
+        // mark the timestamp as committed
+        timestamp_it->second = true;
+        return 0;
     }
 
-    int commitLogEntry(server::ClientRequestId client_request_id) {
-        return -1;
-    }
+    void ReplayLog::cleanOldLogEntry(time_t age) {
 
-    void ReplayLog::cleanOldLogEntry(time_t age) {}
+    }
 
     void ReplayLog::printRelayLogContent() {
         for (auto client_entry_pair : client_list) {
