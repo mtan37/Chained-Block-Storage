@@ -9,6 +9,7 @@
 #include <utility>
 #include <list>
 #include <unordered_map>
+#include <shared_mutex>
 
 namespace Tables {
 
@@ -145,6 +146,9 @@ namespace Tables {
                     bool, Tables::googleTimestampComparator> timestamp_list;
             };
             std::mutex new_entry_mutex;
+            // mutex used so the edit of timestamp 
+            // or addition of new entry does not happen at the same time as garbage collection
+            mutable std::shared_mutex gc_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
     };
 

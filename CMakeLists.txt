@@ -79,6 +79,7 @@ foreach(_target server)
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     )
 
+    target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
@@ -94,6 +95,7 @@ foreach(_target master)
     ./src/interfaceImpl/masterService/ClientListenerImpl.cpp
     )
 
+  target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
@@ -111,6 +113,7 @@ foreach(_target replay_log_test)
     ./src/headers/server.h
     )
 
+  target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
