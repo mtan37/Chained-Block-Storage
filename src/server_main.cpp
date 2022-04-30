@@ -118,8 +118,8 @@ int register_server() {
 
 void relay_write_background() {
     while(true) {
-        if ( Tables::pendingQueueSize() ) {
-            Tables::pendingQueueEntry pending_entry = Tables::popPendingQueue();
+        if ( Tables::pendingQueue.getQueueSize() ) {
+            Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
             if (server::state != server::TAIL) {
                 string next_node_address = server::downstream->ip + ":" + to_string(server::downstream->port);
                 grpc::ChannelArguments args;

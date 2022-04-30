@@ -14,13 +14,13 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
         
-        Tables::pendingQueueEntry entry;
+        Tables::PendingQueue::pendingQueueEntry entry;
         entry.seqNum = request->seqnum();
         entry.volumeOffset = request->offset();
         entry.data = request->data();
         //TODO: Include clientID in RelayWrite requests?
         
-        Tables::pushPendingQueue(entry);
+        Tables::pendingQueue.pushEntry(entry);
         
         return grpc::Status::OK;
 }

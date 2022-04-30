@@ -16,27 +16,33 @@ namespace Tables {
     extern int currentSeq;
     extern int nextSeq;
 
-    // Entry
-    struct pendingQueueEntry {
-        int seqNum = -1;
-        int volumeOffset = -1;
-        //Not sure what type data needs to be yet
-        std::string data = "";
-        server::ClientRequestId reqId;
+    class PendingQueue {
+        public:
+            struct pendingQueueEntry {
+                int seqNum = -1;
+                int volumeOffset = -1;
+                //Not sure what type data needs to be yet
+                std::string data = "";
+                server::ClientRequestId reqId;
 
-        bool operator<(const pendingQueueEntry& comp) const {
-            return seqNum > comp.seqNum;
-        }
+                bool operator<(const pendingQueueEntry& comp) const {
+                    return seqNum > comp.seqNum;
+                }
+            };
+
+            // Adds entry to queue
+            void pushEntry(pendingQueueEntry entry);
+            // removes and returns entry from priority queue
+            pendingQueueEntry popEntry();
+            // returns size of priority queue
+            int getQueueSize();
+
+        private:
+            std::priority_queue<pendingQueueEntry> queue;
+            std::mutex queue_mutex;
     };
-    extern std::priority_queue<pendingQueueEntry> pendingQueue;
 
-    // methods
-    // Adds entry to queue
-    extern void pushPendingQueue(pendingQueueEntry entry);
-    // removes and returns entry from priority queue
-    extern pendingQueueEntry popPendingQueue();
-    // returns size of priority queue
-    extern int pendingQueueSize();
+    extern PendingQueue pendingQueue;
 
    /**
     * Sent List

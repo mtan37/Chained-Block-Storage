@@ -3,32 +3,26 @@
 #include "tables.hpp"
 
 namespace Tables {
-   
-    int currentSeq = 0;
-    int nextSeq = 0;
+   int currentSeq = 0;
+   int nextSeq = 0;
 
-    std::priority_queue<pendingQueueEntry> pendingQueue;
+   PendingQueue pendingQueue;
 
-    void pushPendingQueue(pendingQueueEntry entry) {
-       pendingQueue.push(entry);
-    }
+   void PendingQueue::pushEntry(pendingQueueEntry entry) {
+      queue_mutex.lock();
+      this->queue.push(entry);
+      queue_mutex.unlock();
+   }
 
-    pendingQueueEntry popPendingQueue() {
-       pendingQueueEntry entry = pendingQueue.top();
-       pendingQueue.pop();
-       return entry;
-    }
+   PendingQueue::pendingQueueEntry PendingQueue::popEntry() {
+      queue_mutex.lock();
+      pendingQueueEntry entry = this->queue.top();
+      this->queue.pop();
+      queue_mutex.unlock();
+      return entry;
+   }
 
-    /**
-     * Checks the next seq # in the list
-     * @return seq # that is at the top
-     */
-    int peekPendingQueue(){
-        pendingQueueEntry entry = pendingQueue.top();
-        return entry.seqNum;
-    }
-
-    int pendingQueueSize() {
-       return pendingQueue.size();
-    }
+   int PendingQueue::getQueueSize() {
+      return this->queue.size();
+   }
 }
