@@ -16,32 +16,12 @@ namespace Tables {
     extern int currentSeq;
     extern int nextSeq;
 
-    //Replace later with data that directly references IP/pid/timestamp byte values
-    struct clientID {
-        std::string ip = "";
-        int pid = -1;
-        double rid = 0;
-
-        bool operator<(const clientID& comp) const {
-            if (ip == comp.ip){
-                if (pid == comp.pid) {
-                    return rid < comp.rid;
-                } else return pid < comp.pid;
-            } else return ip < comp.ip;
-        }
-    };
-    
-    /**
-    * Pending Queue
-    */
-
     // Entry
     struct pendingQueueEntry {
         int seqNum = -1;
         int volumeOffset = -1;
         //Not sure what type data needs to be yet
         std::string data = "";
-        //How do we want to store client IDs?
         server::ClientRequestId reqId;
 
         bool operator<(const pendingQueueEntry& comp) const {
@@ -58,32 +38,35 @@ namespace Tables {
     // returns size of priority queue
     extern int pendingQueueSize();
 
-    /**
+   /**
     * Sent List
+    * And ordered map using clientId as key for fast retrival
     */
+    class SentList {
+        public:
+            struct sentListEntry {
+                int volumeOffset = -1;
+                int fileOffset[2] = {-1,-1};
+            };
 
-    // Data structures
-    struct sentListItem {
-       int volumeOffset = -1;
-       int fileOffset[2] = {-1,-1};
+            // Adds sentListEntry onto list. throws invalid_argument if key is already in list
+            void pushEntry(server::ClientRequestId clientId, sentListEntry entry);
+            // Pops sentListEntry at clientId
+            // throws invalid_argument if key is not in list
+            sentListEntry popEntry(server::ClientRequestId clientId);
+            // Returns size of sent list
+            int getListSize();
+            // Prints content of sent list
+            void printSentList();
+        private:
+            std::string clientIdToIdentifier(server::ClientRequestId clientId);
+            std::map<std::string, sentListEntry> list;
+            std::mutex list_mutex;
+
     };
-    extern std::map<int, sentListItem> sentList;
-    typedef std::pair <int, sentListItem> sentListEntry; // this is how the map above stores this data
-    
-    // Methods
-    // Adds sentListEntry onto list. throws invalid_argument if key is already in list
-    extern void pushSentList(sentListEntry entry);
-    // Pops sentListEntry at seqNum
-    extern sentListEntry popSentList(int seqNum);
-    // pops and returns a list of sentListEntry's from key-EOF)  that can be used to 
-    // aid recovery on failur. Throws invalid_argument if startSeqNum
-    // is not in list, throws length_error if list is empty
-    extern std::list<sentListEntry> popSentListRange(int startSeqNum = 0);
-    // Returns size of sent list
-    extern int sentListSize();
-    // Prints content of sent list
-    void printSentList();
+    extern SentList sentList;
 
+    // comparator used to compare different google timestamp
     struct googleTimestampComparator {
         bool operator() (
             const google::protobuf::Timestamp &t1, 
@@ -150,7 +133,6 @@ namespace Tables {
             mutable std::shared_mutex gc_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
     };
-
     extern ReplayLog replayLog;
 };
 #endif
