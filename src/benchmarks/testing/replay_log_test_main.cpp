@@ -1,5 +1,9 @@
 #include <iostream>
 #include <sys/time.h>
+#include <chrono>
+#include <thread>
+#include <stdio.h>
+#include <stdlib.h>
 #include <grpc++/grpc++.h>
 #include "server.h"
 #include "tables.hpp"
@@ -164,6 +168,115 @@ int ackNonExistEntries () {
     return 0;
 }
 
+int garbageCollectionTest() {
+    // add client id entry
+    server::ClientRequestId client_id;
+    client_id.set_ip("77.1.1.1");
+    client_id.set_pid(23636);
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+    time->set_seconds(tv.tv_sec);
+    time->set_nanos(tv.tv_usec * 1000);
+    Tables::replayLog.addToLog(client_id);
+
+    // sleep for 1 second TODO
+    int sleep_time = 1;
+    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_time * 1000 * 2));
+
+    // do a garbage collection, and verify the entry is gone TOOD
+    Tables::replayLog.cleanOldLogEntry(sleep_time);
+    int commit_result_not_exist = Tables::replayLog.commitLogEntry(client_id);
+
+    if (commit_result_not_exist != -1) {
+        cout<<"garbageCollectionTest: Does not return the correct error code for commit log that does not exist"<<endl;
+        cout << "returned " << commit_result_not_exist << " instead of " << -1 << endl;
+        return -1;
+    }
+
+    return 0;
+}
+
+void garbageCollectionThread(int sleep_time, int iteration) {
+    // overall iteration
+    for (int i = 0; i < iteration; i++) {
+        std::cout << "garbage collection" << ", it: " << i << std::endl;
+        Tables::replayLog.cleanOldLogEntry(2);
+        std::this_thread::sleep_for(std::chrono::seconds(sleep_time));
+    }
+}
+
+// one unit of workload
+void burstingWordloadHelperAdd(int pid) {
+    std::list<google::protobuf::Timestamp *> added;// list of added uncommit entry
+
+    for (int i = 0; i < 100; i ++) {
+        server::ClientRequestId client_id;
+        client_id.set_ip("22.33.1.1");
+        client_id.set_pid(pid);
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+        time->set_seconds(tv.tv_sec);
+        time->set_nanos(tv.tv_usec * 1000);
+        Tables::replayLog.addToLog(client_id);
+        added.push_front(time);
+    }
+
+    // commit them
+    for (auto entry_time: added) {
+        server::ClientRequestId client_id;
+        client_id.set_ip("22.33.1.1");
+        client_id.set_pid(pid);
+        google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+        time->set_seconds(entry_time->seconds());
+        time->set_nanos(entry_time->nanos());
+        Tables::replayLog.commitLogEntry(client_id);
+    }
+
+    // ack part of the entries
+    for (auto entry_time: added) {
+        int random = rand() % 10;
+        if (random < 5) {
+            server::ClientRequestId client_id;
+            client_id.set_ip("22.33.1.1");
+            client_id.set_pid(pid);
+            google::protobuf::Timestamp *time = client_id.mutable_timestamp();
+            time->set_seconds(entry_time->seconds());
+            time->set_nanos(entry_time->nanos());
+            Tables::replayLog.ackLogEntry(client_id);
+        }
+    }
+
+}
+
+void burstingWordloadThread(int sleep_time, int iteration, int pid) {
+    // overall iteration
+    for (int i = 0; i < iteration; i++) {
+        std::cout << "bursting workload sleeptime " << sleep_time << ", it: " << i << std::endl;
+        burstingWordloadHelperAdd(pid);
+        std::this_thread::sleep_for(std::chrono::seconds(sleep_time));
+    }
+}
+
+void workLoadTest() {
+    int x = 1;
+    int y = 3;
+
+    // start a thread simulating bursting wordload for every y seconds
+    std::thread workload1 (burstingWordloadThread, y, 10, 133);
+    // start a second thread simulating bursting wordload for every y - 1 seconds
+    std::thread workload2 (burstingWordloadThread, y - 1, 10, 144);
+
+    // start a thread for garbage collection initiating every x seconds
+    // this time will be set short in comparison to y to increase the likelyhood of intervine
+    std::thread garbage_collection (garbageCollectionThread, x, 40);
+
+    workload1.join();
+    workload2.join();
+    garbage_collection.join();
+}
+
 int main(int argc, char *argv[]) {
     if (addSimpleIds() < 0) cout << "addSimpleIds test did not pass" << endl;
     else cout << "addSimpleIds test successful!" << endl;
@@ -179,4 +292,13 @@ int main(int argc, char *argv[]) {
 
     if (ackNonExistEntries() < 0) cout << "ackNonExistEntries test did not pass" << endl;
     else cout << "ackNonExistEntries test successful!" << endl;
+
+    if (garbageCollectionTest() < 0) cout << "garbageCollectionTest test did not pass" << endl;
+    else cout << "garbageCollectionTest test successful!" << endl;
+
+    // Simulate regular workload happening the same time with garbage collection in between
+    workLoadTest();
+
+    // the log should be empty at this point
+    Tables::replayLog.printRelayLogContent();
 }
