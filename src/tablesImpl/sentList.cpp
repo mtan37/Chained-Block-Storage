@@ -7,25 +7,11 @@ namespace Tables {
     SentList sentList;
 
     /**
-     * @brief Convert clientId object into string so it could
-     * be used as map key
-     * 
+     * adds entry to sentList at seqNum
      */
-    std::string SentList::clientIdToIdentifier(server::ClientRequestId clientId) {
-        google::protobuf::Timestamp timestamp = clientId.timestamp();
-        std::string identifier = 
-            clientId.ip() + ":" + std::to_string(clientId.pid()) + 
-            ":" + std::to_string(timestamp.seconds()) + ":" + 
-            std::to_string(timestamp.nanos());
-        return identifier; 
-    }
-
-    /**
-     * adds entry to sentList at clientId
-     */
-    void SentList::pushEntry(server::ClientRequestId clientId, sentListEntry entry){
+    void SentList::pushEntry(int seqNum, sentListEntry entry){
         list_mutex.lock();
-        auto ret = this->list.insert(std::make_pair(clientIdToIdentifier(clientId), entry));
+        auto ret = this->list.insert(std::make_pair(seqNum, entry));
         list_mutex.unlock();
 
         if (ret.second == false) {
@@ -36,14 +22,14 @@ namespace Tables {
     /**
     * Remove single item from sentList, returns error if key not found
     */
-     SentList::sentListEntry SentList::popEntry(server::ClientRequestId clientId){
+     SentList::sentListEntry SentList::popEntry(int seqNum){
         list_mutex.lock();
         if (getListSize()==0) {
             list_mutex.unlock();
             throw std::length_error("Trying to get key from empty list");
         }
 
-        auto it = this->list.find(clientIdToIdentifier(clientId));
+        auto it = this->list.find(seqNum);
         if (it != this->list.end()){
             SentList::sentListEntry entry = it->second;
             this->list.erase(it);
@@ -54,6 +40,37 @@ namespace Tables {
            list_mutex.unlock();
            throw std::invalid_argument("Key not found in sentList");
         }
+    }
+
+    std::list<SentList::sentListEntry> SentList::popSentListRange(int startSeqNum) {
+        std::list<sentListEntry> returnList;
+        std::map<int, sentListEntry>::iterator it;
+
+        list_mutex.lock();
+        // Return if list is empty
+        if (getListSize()==0) {
+            list_mutex.unlock();
+            throw std::length_error("Trying to get range from empty list");
+        }
+
+        // Set iterator to correct location based on startSeqNum
+        if (startSeqNum == 0) it = this->list.begin();
+        else {
+            it = this->list.find(startSeqNum);
+            if (it == this->list.end()){
+                list_mutex.unlock();
+                throw std::invalid_argument("Key not found in sentList");
+            }
+        }
+
+        while(it != this->list.end()){
+            sentListEntry returnItem;
+            returnItem = it->second;
+            returnList.push_back(returnItem);
+            it = this->list.erase(it);
+        }
+        list_mutex.unlock();
+        return returnList;
     }
    
     int SentList::getListSize() {

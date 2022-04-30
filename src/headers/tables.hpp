@@ -51,22 +51,32 @@ namespace Tables {
     class SentList {
         public:
             struct sentListEntry {
+                server::ClientRequestId reqId;
                 int volumeOffset = -1;
                 int fileOffset[2] = {-1,-1};
             };
 
             // Adds sentListEntry onto list. throws invalid_argument if key is already in list
-            void pushEntry(server::ClientRequestId clientId, sentListEntry entry);
+            void pushEntry(int seqNum, sentListEntry entry);
             // Pops sentListEntry at clientId
             // throws invalid_argument if key is not in list
-            sentListEntry popEntry(server::ClientRequestId clientId);
+            sentListEntry popEntry(int seqNum);
+            /**
+             * returns a range of items >= startSeqNum, removes from sent list,
+             * used for recovery.  If no startSeqNum, or = 0, returns and clears
+             * entire sent list. Removes items as it adds them to the list
+             *
+             * @param startSeqNum sequence number at which to start returning values, defaults to 0
+             *                     which returns entire list
+             * @return list of sentListPairs starting at startSeqNum
+             */
+            std::list<sentListEntry> popSentListRange(int startSeqNum);
             // Returns size of sent list
             int getListSize();
             // Prints content of sent list
             void printSentList();
         private:
-            std::string clientIdToIdentifier(server::ClientRequestId clientId);
-            std::map<std::string, sentListEntry> list;
+            std::map<int, sentListEntry> list;
             std::mutex list_mutex;
 
     };

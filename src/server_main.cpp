@@ -150,7 +150,7 @@ void relay_write_background() {
             //TODO: Where does file offset come from?
             sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
 
-            Tables::sentList.pushEntry(pending_entry.reqId, sent_entry);
+            Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
             //Add to replay log
             //TODO: This needs to be moved over to write()
