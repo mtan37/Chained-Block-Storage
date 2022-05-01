@@ -12,6 +12,7 @@ namespace master {
     struct Node {
       std::string ip;
       int port;
+      serverState state = server::INITIALIZE;
       std::unique_ptr<server::MasterListener::Stub> stub;
     };
     const int HEARTBEAT = 5;

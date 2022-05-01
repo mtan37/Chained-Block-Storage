@@ -24,8 +24,8 @@ namespace server {
     server::Node *upstream;
     State state;
 
-    string get_state() {
-        switch (server::state) {
+    string get_state(State state) {
+        switch (state) {
             case server::HEAD:
                 return "Head";
                 break;
@@ -80,6 +80,8 @@ int register_server() {
         grpc::ClientContext context;
         grpc::Status status = master_stub->Register(&context, request, &reply);
         // Check return status on register call
+        // Once we get return we are ready to go.  Have been brought up to speed by previous
+        // tail, or have been brought up as single server and act as source of truth
         if (!status.ok()) {
             cout << "Can't contact master at " << master_address << endl;
             sleep(1);
@@ -89,14 +91,8 @@ int register_server() {
         }
     }
 
-
     // Building communication with current tail
     if (reply.has_prev_addr()) {
-        //TODO: Deal with bootstraping volume here - this actually probably wont work
-        // just like this.  The true tail will need to communicate  with this node
-        // to bring it up to speed, and while it does it will need to pause
-        // and then we will need to set this node to tail and the old tail to mid
-
         master::ServerIp prev_addy_ip = reply.prev_addr();
         server::upstream->ip =  prev_addy_ip.ip();
         server::upstream->port =  prev_addy_ip.port();
@@ -106,13 +102,16 @@ int register_server() {
         args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
         server::upstream->stub = server::NodeListener::NewStub(channel);
-        //TODO: Test this connection works
+        //TODO: Test this connection works?
         server::state = server::TAIL;
     } else { // Starting in single server mode
         server::state = server::SINGLE;
+        // Need to launch head service here
     }
 
-    cout << "My state is " << server::get_state() << endl;
+    // Launch tail service here
+
+    cout << "My state is " << server::get_state(server::state) << endl;
     return 0;
 }
 
@@ -217,19 +216,18 @@ int main(int argc, char *argv[]) {
     // Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
 
-    // Start listner for master
+    // Start listning to master
     std::string my_address(my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl myMasterListen;
-//
     grpc::ServerBuilder masterListenerBuilder;
     masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
     masterListenerBuilder.RegisterService(&myMasterListen);
     std::unique_ptr<grpc::Server> masterListener(masterListenerBuilder.BuildAndStart());
-////     Thread server out and start listening
+    // Thread server out and start listening
     std::thread masterListener_service_thread(run_service, masterListener.get(), "Listen to Master");
-////    std::cout << "Starting to run master listener" << "\n";
-////    masterListener->Wait();
-//
+
+
+    // Close server
     masterListener_service_thread.join();
     relay_write_thread.join();
     delete server::downstream;

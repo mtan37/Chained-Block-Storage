@@ -15,8 +15,9 @@ grpc::Status server::MasterListenerImpl::HeartBeat (grpc::ServerContext *context
     const google::protobuf::Empty *request,
     google::protobuf::Empty *reply){
         // Should not have to do anything but reply.
-        if (hb_two) cout << ".." << endl;
-        else cout << "." << endl;
+        if (hb_two) cout << "..(";
+        else cout << ".(" ;
+        cout  << server::get_state(server::state) << ")" << endl;
         hb_two = !hb_two;
         return grpc::Status::OK;
 }
@@ -25,16 +26,7 @@ grpc::Status server::MasterListenerImpl::HeartBeat (grpc::ServerContext *context
  * Allows node to get message from server informing it that its state has changed
  * This can be caused by a new node being added, or by node failure
  *
- * Change Node Scenerios
- *  a) Normal operations
- *      i. Single server, new tail, become head
- *      ii. tail, new tail, need to stay tail, but start bringing pending tail up to speed
- *  b) Failures
- *      i. Head, 2 nodes, tail fails, become single server
- *      ii. Tail, 2 nodes, head fails, become single server
- *      iii. M-1\M+1, 3+ nodes, mid fails, +1 and -1 need to converse, state stays the same
- *      iv.  Mid, 3+ nodes, head fails, become new head
- *      v. Mid, 3+ nodes, tail fails, become the new tail
+
  *
  * @param context
  * @param request
@@ -45,8 +37,8 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     const server::ChangeModeRequest *request,
     server::ChangeModeReply *reply) {
 
-        cout << "Transitioning to new state." << endl;
         server::state = server::TRANSITION;
+        cout << "Transitioning to new state." << endl;
         //TODO: Set prev/next node info (don't replace if empty request, case with new tail), change HEAD/MIDDLE/TAIL state
 
 
@@ -71,6 +63,10 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             server::downstream->stub = server::NodeListener::NewStub(channel);
         }
 
+        /*
+         * If mode was tail, and new mode is not tail then need to bring new tail up to speed
+         */
+
         // We may need additional info for failure scenarios
         if (server::upstream->ip != "" && server::downstream->ip == "") server::state = server::TAIL;
         if (server::upstream->ip == "" && server::downstream->ip != "") server::state = server::HEAD;
@@ -78,7 +74,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         if (server::upstream->ip == "" && server::downstream->ip == "") server::state = server::SINGLE;
 
 
-        cout << "...New state = " << server::get_state() << endl;
+        cout << "...New state = " << server::get_state(server::state) << endl;
 
 //        //TODO: Handle sequence numbers and reply
         
