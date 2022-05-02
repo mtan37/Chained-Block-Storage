@@ -193,6 +193,11 @@ void init_volume(std::string volume_name) {
   }
 }
 
+void close_volume() {
+  fsync(fd);
+  close(fd);
+}
+
 void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
   write(buf.data(), volume_offset, file_offset, sequence_number);
 }

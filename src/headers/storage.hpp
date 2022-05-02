@@ -12,6 +12,9 @@ void open_volume(std::string volume_name);
 // Create an empty volume, deleting the existing contents if they exist
 void init_volume(std::string volume_name);
 
+// Close the currently open volume and flush it to disk
+void close_volume();
+
 // Write buf to volume, but don't commit
 // On success, return the file offset so it can be added to the sent list
 // On error, return the 
