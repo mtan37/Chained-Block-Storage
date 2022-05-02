@@ -118,8 +118,8 @@ int register_server() {
 
 void relay_write_background() {
     while(true) {
-        if ( Tables::pendingQueueSize() ) {
-            Tables::pendingQueueEntry pending_entry = Tables::popPendingQueue();
+        if ( Tables::pendingQueue.getQueueSize() ) {
+            Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
             if (server::state != server::TAIL) {
                 string next_node_address = server::downstream->ip + ":" + to_string(server::downstream->port);
                 grpc::ChannelArguments args;
@@ -145,14 +145,12 @@ void relay_write_background() {
             //TODO: write locally
 
             //Add to sent list
-            Tables::sentListEntry sent_entry;
-            Tables::sentListItem sent_item;
-            sent_item.volumeOffset = pending_entry.volumeOffset;
+            Tables::SentList::sentListEntry sent_entry;
+            sent_entry.volumeOffset = pending_entry.volumeOffset;
             //TODO: Where does file offset come from?
-            sent_item.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
-            sent_entry.first = pending_entry.seqNum;
-            sent_entry.second = sent_item;
-            Tables::pushSentList(sent_entry);
+            sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
+
+            Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
             //Add to replay log
             //TODO: This needs to be moved over to write()

@@ -64,14 +64,15 @@ endforeach()
 # add executables to root directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
 
-
 include_directories(src/headers)
+# add all the table implementations
+FILE(GLOB TableImpls ./src/tablesImpl/*.cpp)
 
 # c++ targets
 foreach(_target server)
   add_executable(${_target} 
     ./src/${_target}_main.cpp
-    ./src/tables.cpp
+    ${TableImpls}
     ./src/headers/server.h
     ./src/interfaceImpl/serverService/HeadServiceImpl.cpp
     ./src/interfaceImpl/serverService/TailServiceImpl.cpp
@@ -79,6 +80,7 @@ foreach(_target server)
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     )
 
+    target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
@@ -94,6 +96,7 @@ foreach(_target master)
     ./src/interfaceImpl/masterService/ClientListenerImpl.cpp
     )
 
+  target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
@@ -104,13 +107,14 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target replay_log_test)
+foreach(_target replay_log_test sent_list_test pending_queue_test)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
-    ./src/tables.cpp
+    ${TableImpls}
     ./src/headers/server.h
     )
 
+  target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
