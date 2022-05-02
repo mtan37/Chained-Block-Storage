@@ -39,6 +39,7 @@ namespace Tables {
 
         private:
             std::priority_queue<pendingQueueEntry> queue;
+            std::set<int> seqNumSet;// seq of seq number that is currently present in the queue
             std::mutex queue_mutex;
     };
 

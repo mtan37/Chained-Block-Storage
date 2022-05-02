@@ -26,7 +26,7 @@ namespace Tables {
         list_mutex.lock();
         if (getListSize()==0) {
             list_mutex.unlock();
-            throw std::length_error("Trying to get key from empty list");
+            throw std::invalid_argument("Key not found in sentList");
         }
 
         auto it = this->list.find(seqNum);
