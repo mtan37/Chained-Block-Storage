@@ -107,7 +107,7 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target replay_log_test sent_list_test)
+foreach(_target replay_log_test sent_list_test pending_queue_test)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
     ${TableImpls}

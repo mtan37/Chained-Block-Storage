@@ -3,12 +3,25 @@
 #include "server.h"
 #include "tables.hpp"
 
-int popInvalidEntry() {
-    // add an invalid entry, and make sure it returns the exception
+int popFromEmptyMap() {
     try {
         Tables::sentList.popEntry(233);
         return -1;
     } catch (std::invalid_argument e) {
+        return 0;
+    }
+}
+
+int popInvalidEntry() {
+    // add an invalid entry, and make sure it returns the exception
+    try {
+        Tables::SentList::sentListEntry sent_entry;
+        Tables::sentList.pushEntry(122, sent_entry);
+        Tables::sentList.popEntry(233);
+        Tables::sentList.popEntry(122);
+        return -1;
+    } catch (std::invalid_argument e) {
+        Tables::sentList.popEntry(122);
         return 0;
     }
 }
@@ -61,6 +74,12 @@ void workLoadTest() {
 
 int main(int argc, char *argv[]) {
 
+    if (popFromEmptyMap() < 0) {
+        std::cout << "popFromEmptyMap failed" << std::endl;
+    } else {
+        std::cout << "popFromEmptyMap passed" << std::endl;
+    }
+
     if (popInvalidEntry() < 0) {
         std::cout << "popInvalidEntry failed" << std::endl;
     } else {
@@ -75,5 +94,5 @@ int main(int argc, char *argv[]) {
 
     // workload simulation test
     workLoadTest();
-    std::cout << "wordload simulation passed" << std::endl;
+    std::cout << "workload simulation passed" << std::endl;
 }
