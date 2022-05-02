@@ -9,6 +9,7 @@
 #include "tables.hpp" 
 #include "master.h"
 #include "server.h"
+#include "storage.hpp"
 
 #include <thread>
 
@@ -203,6 +204,8 @@ void relay_write_background() {
             } //End forwarding if non-tail
 
             //TODO: write locally
+            //Need clarification on file vs volume offset
+            //Storage::write(pending_entry.data, pending_entry.volumeOffset, /*FILE OFFSET*/ ,pending_entry.seqNum)
 
             //Add to sent list
             Tables::SentList::sentListEntry sent_entry;
@@ -220,7 +223,28 @@ void relay_write_background() {
 
             if (server::state == server::TAIL) {
                 //TODO: commit
-                //TODO: send an ack backwards?
+                //Need clarification on file vs volume offset, same as above
+                //Storage::commit(pending_entry.seqNum, /*FILE OFFSET*/, pending_entry.volumeOffset);
+                
+                //send an ack backwards
+                string prev_node_address = server::upstream->ip + ":" + to_string(server::upstream->port);
+                grpc::ChannelArguments args;
+                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(prev_node_address, grpc::InsecureChannelCredentials(), args);
+                std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
+                grpc::ClientContext relay_context;
+                google::protobuf::Empty RelayWriteAckReply;
+                server::RelayWriteAckRequest request;
+                request.set_seqnum(pending_entry.seqNum);
+                
+                grpc::Status status = next_node_stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
+
+                if (!status.ok()) {
+                    cout << "Failed to relay write ack to next node" << endl;
+                    //TODO: Retry?
+                }
+                
+                Tables::commitSeq = (int) pending_entry.seqNum;
             }
         }
     }

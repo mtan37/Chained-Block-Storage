@@ -60,7 +60,7 @@ public:
 //    ~TailServiceImpl(){cout << "Closing tail service" << endl;};
     grpc::Status WriteAck (grpc::ServerContext *context,
                           const server::WriteAckRequest *request,
-                          google::protobuf::Empty *reply);
+                          server::WriteAckReply *reply);
 
     grpc::Status Read (grpc::ServerContext *context,
                           const server::ReadRequest *request,
