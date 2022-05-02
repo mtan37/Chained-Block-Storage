@@ -78,6 +78,7 @@ foreach(_target server)
     ./src/interfaceImpl/serverService/TailServiceImpl.cpp
     ./src/interfaceImpl/serverService/NodeListenerImpl.cpp
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
+    ./src/storage.cpp
     )
 
     target_compile_features(${_target} PRIVATE cxx_std_17)

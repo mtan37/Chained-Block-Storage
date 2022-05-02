@@ -3,8 +3,8 @@
 #include "tables.hpp"
 
 namespace Tables {
-   int currentSeq = 0;
-   int nextSeq = 0;
+   int writeSeq = 0;
+   int commitSeq = 0;
 
    PendingQueue pendingQueue;
 

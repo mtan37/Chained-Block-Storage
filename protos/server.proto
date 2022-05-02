@@ -51,6 +51,11 @@ service HeadService {
 
 message WriteAckRequest {
     ClientRequestId clientRequestId = 1;
+    uint64 seqNum = 2;
+}
+
+message WriteAckReply {
+    bool committed = 1;
 }
 
 message ReadRequest {
@@ -63,7 +68,7 @@ message ReadReply {
 
 // Service hosted on tail, listening for client request for receiving ack for sent writes
 service TailService {
-    rpc WriteAck(WriteAckRequest) returns (google.protobuf.Empty){}
+    rpc WriteAck(WriteAckRequest) returns (WriteAckReply){}
     rpc Read(ReadRequest) returns (ReadReply){}
 }
 
