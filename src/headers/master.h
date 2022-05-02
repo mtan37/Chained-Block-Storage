@@ -8,11 +8,12 @@
 namespace master {
     class NodeListenerImpl;
     class ClientListenerImpl;
-    
+
+    // members
     struct Node {
       std::string ip;
       int port;
-      serverState state = server::INITIALIZE;
+      server::State state = server::INITIALIZE;
       std::unique_ptr<server::MasterListener::Stub> stub;
     };
     const int HEARTBEAT = 5;
@@ -20,6 +21,9 @@ namespace master {
     extern master::Node *head;
     extern master::Node *tail;
     extern std::mutex nodeList_mtx;
+    // methods
+    extern void print_nodes();
+    extern void build_node_stub(master::Node* node);
 }
 
 class master::NodeListenerImpl final : public master::NodeListener::Service {

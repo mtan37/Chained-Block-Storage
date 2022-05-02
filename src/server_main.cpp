@@ -23,6 +23,8 @@ namespace server {
     server::Node *downstream;
     server::Node *upstream;
     State state;
+    std::unique_ptr<grpc::Server> headService;
+    std::unique_ptr<grpc::Server> tailService;
 
     string get_state(State state) {
         switch (state) {
@@ -46,6 +48,52 @@ namespace server {
                 break;
         }
     };
+
+    // Run grpc service in a loop
+    void run_service(grpc::Server *server, std::string serviceName) {
+        std::cout << "Starting to " << serviceName << "\n";
+        server->Wait();
+        cout << "Ending " << serviceName << endl;
+    }
+
+    /*
+     * Launch tail service.  Service can be launched multiple times per server based on
+     * failure scenarios, and must be shutdown appropriately when no longer tail.
+     */
+    void launch_tail(){
+        std::string my_address(my_ip + ":" + to_string(my_port));
+        server::TailServiceImpl tailServiceImpl;
+        grpc::ServerBuilder tailBuilder;
+        tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+        tailBuilder.RegisterService(&tailServiceImpl);
+        // Thread server out and start listening
+        server::tailService = tailBuilder.BuildAndStart();
+        //server::tailService(tailBuilder.BuildAndStart());
+//        std::thread tail_service_thread(server::run_service, tailService.get(), "listen as tail");
+        std::thread (server::run_service, tailService.get(), "listen as tail").detach();
+    }
+
+    // We need to kill tail when promoted to mid\head.  But keep in mind that
+    // We can become tail again if current tail fails
+    void kill_tail(){
+        server::tailService->Shutdown();
+    }
+
+    /**
+     * Launch head.  Head never reverts, so we can detach head service thread.
+     */
+    void launch_head(){
+        std::string my_address(my_ip + ":" + to_string(my_port));
+        cout << "About to launch head at " << my_address << endl;
+        server::HeadServiceImpl headServiceImpl;
+        grpc::ServerBuilder headBuilder;
+        headBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+        headBuilder.RegisterService(&headServiceImpl);
+        // Thread server out and start listening
+        server::headService = headBuilder.BuildAndStart();
+        std::thread (server::run_service, server::headService.get(), "listen as head").detach();
+    }
+
 };
 
 
@@ -84,13 +132,14 @@ int register_server() {
         // tail, or have been brought up as single server and act as source of truth
         if (!status.ok()) {
             cout << "Can't contact master at " << master_address << endl;
-            sleep(1);
+//            sleep(1);
         } else {
             cout << "Was able to contact master" << endl;
             break;
         }
     }
 
+//    sleep(4);
     // Building communication with current tail
     if (reply.has_prev_addr()) {
         master::ServerIp prev_addy_ip = reply.prev_addr();
@@ -107,10 +156,11 @@ int register_server() {
     } else { // Starting in single server mode
         server::state = server::SINGLE;
         // Need to launch head service here
+        server::launch_head();
     }
 
-    // Launch tail service here
-
+    // Launch tail service here - could potentially launch in main() since all nodes come up as tail
+    server::launch_tail();
     cout << "My state is " << server::get_state(server::state) << endl;
     return 0;
 }
@@ -200,33 +250,40 @@ int parse_args(int argc, char** argv){
     return 0;
 }
 
-// Run grpc service in a loop
-void run_service(grpc::Server *server, std::string serviceName) {
-    std::cout << "Starting to " << serviceName << "\n";
-    server->Wait();
-}
 
 int main(int argc, char *argv[]) {
     server::state = server::INITIALIZE;
     if (parse_args(argc, argv) < 0) return -1;
-    if (register_server() < 0) return -1;
-    
+
     // Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
 
-    // Start listning to master
+    // Start listening to master - TODO: Probably doesn't need to launch as thread
     std::string my_address(my_ip + ":" + to_string(my_port));
-    server::MasterListenerImpl myMasterListen;
+    server::MasterListenerImpl masterListenerImpl;
     grpc::ServerBuilder masterListenerBuilder;
     masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    masterListenerBuilder.RegisterService(&myMasterListen);
+    masterListenerBuilder.RegisterService(&masterListenerImpl);
     std::unique_ptr<grpc::Server> masterListener(masterListenerBuilder.BuildAndStart());
     // Thread server out and start listening
-    std::thread masterListener_service_thread(run_service, masterListener.get(), "Listen to Master");
+//    std::cout << "Starting to listen to Master\n";
+//    masterListener->Wait();
+    std::thread masterListener_service_thread(server::run_service, masterListener.get(), "listen to Master");
 
+    // Start listening to other nodes
+    server::NodeListenerImpl nodeListenerImpl;
+    grpc::ServerBuilder nodeListenerBuilder;
+    nodeListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    nodeListenerBuilder.RegisterService(&nodeListenerImpl);
+    std::unique_ptr<grpc::Server> nodeListener(masterListenerBuilder.BuildAndStart());
+    std::thread nodeListener_service_thread(server::run_service, nodeListener.get(), "listen to other nodes");
+
+    // Register node with master
+    if (register_server() < 0) return -1;
 
     // Close server
     masterListener_service_thread.join();
+    nodeListener_service_thread.join();
     relay_write_thread.join();
     delete server::downstream;
     delete server::upstream;

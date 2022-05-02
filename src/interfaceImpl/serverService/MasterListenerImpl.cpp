@@ -25,8 +25,12 @@ grpc::Status server::MasterListenerImpl::HeartBeat (grpc::ServerContext *context
 /**
  * Allows node to get message from server informing it that its state has changed
  * This can be caused by a new node being added, or by node failure
- *
-
+ * Two aspects to state change
+ * a) New communicaiton lines, need to (re)build stub.  In certain cases some node-node
+ *    communicaton needs to terminate (i.e writes headed downstream when our new state is tail)
+ *    This can probably be handled in status check on write, like while(state!=TAIL) try again.
+ *    This is true for relay acks as well when you become head.  Otherwise these actions can
+ *    just retry and eventually the stub is updated.  Only concern is what happens if communication
  *
  * @param context
  * @param request
@@ -69,7 +73,10 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
 
         // We may need additional info for failure scenarios
         if (server::upstream->ip != "" && server::downstream->ip == "") server::state = server::TAIL;
-        if (server::upstream->ip == "" && server::downstream->ip != "") server::state = server::HEAD;
+        if (server::upstream->ip == "" && server::downstream->ip != "") {
+            server::state = server::HEAD;
+            server::kill_tail();
+        }
         if (server::upstream->ip != "" && server::downstream->ip != "") server::state = server::MIDDLE;
         if (server::upstream->ip == "" && server::downstream->ip == "") server::state = server::SINGLE;
 

@@ -3,6 +3,7 @@
 
 using namespace std;
 
+
 grpc::Status server::HeadServiceImpl::Write (
     grpc::ServerContext *context,
     const server::WriteRequest *request,
