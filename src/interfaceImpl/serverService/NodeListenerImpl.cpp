@@ -30,10 +30,13 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
     google::protobuf::Empty *reply) {
         
         //TODO: Update metadata table / commit
-        //TODO: Remove from sent list, depends on changing sentList data strcuture
-        Tables::currentSeq = (int) request->seqnum();
-        //TODO: Get next node's sequence number
-        Tables::nextSeq = 0;
+        //How do we get file offset?
+        //Storage::commit(pending_entry.seqNum, /*FILE OFFSET*/, pending_entry.volumeOffset);
+        
+        //Remove from sent list
+        Tables::sentList.popEntry((int) request->seqnum());
+        
+        Tables::commitSeq = (int) request->seqnum();
         
         //Relay to previous nodes
         string prev_node_address = server::upstream->ip + ":" + to_string(server::upstream->port);

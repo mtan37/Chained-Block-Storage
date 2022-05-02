@@ -13,8 +13,8 @@
 
 namespace Tables {
 
-    extern int currentSeq;
-    extern int nextSeq;
+    extern int writeSeq;
+    extern int commitSeq;
 
     class PendingQueue {
         public:

@@ -9,23 +9,32 @@ namespace server {
     class TailServiceImpl;
     class NodeListenerImpl;
 
+    // members
     struct Node {
         std::string ip = "";
         int port = -1;
         std::unique_ptr<server::NodeListener::Stub> stub;
     };
-
-    string get_state();
-
     extern server::Node *downstream;
     extern server::Node *upstream;
+    extern std::mutex changemode_mtx;
     enum State { HEAD, TAIL, MIDDLE, SINGLE, INITIALIZE, TRANSITION };
     extern State state;
+    extern std::unique_ptr<grpc::Server> tailService;
+    // methods
+    extern string get_state(server::State state);
+    extern void launch_tail();
+    extern void kill_tail();
+    extern void launch_head();
+    extern void run_service(grpc::Server *, std::string);
+    extern void build_node_stub(server::Node* node);
 }
 
 class server::MasterListenerImpl final : public server::MasterListener::Service {
 public:
 
+//    MasterListenerImpl(){cout << "Preping master" << endl;};
+//    ~MasterListenerImpl(){cout << "Closing master" << endl;};
     grpc::Status HeartBeat (grpc::ServerContext *context,
                           const google::protobuf::Empty *request,
                           google::protobuf::Empty *reply);
@@ -37,7 +46,8 @@ public:
 
 class server::HeadServiceImpl final : public server::HeadService::Service {
 public:
-
+//    HeadServiceImpl(){cout << "Preping head" << endl;};
+//    ~HeadServiceImpl(){cout << "Closing head" << endl;};
     grpc::Status Write (grpc::ServerContext *context,
                           const server::WriteRequest *request,
                           server::WriteReply *reply);
@@ -46,9 +56,11 @@ public:
 class server::TailServiceImpl final : public server::TailService::Service {
 public:
 
+//    TailServiceImpl() {cout << "Preparing tail service" << endl;};
+//    ~TailServiceImpl(){cout << "Closing tail service" << endl;};
     grpc::Status WriteAck (grpc::ServerContext *context,
                           const server::WriteAckRequest *request,
-                          google::protobuf::Empty *reply);
+                          server::WriteAckReply *reply);
 
     grpc::Status Read (grpc::ServerContext *context,
                           const server::ReadRequest *request,

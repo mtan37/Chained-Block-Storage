@@ -12,6 +12,7 @@ message ServerIp {
 // Listens for server nodes
 message RegisterRequest {
     ServerIp server_ip = 1;
+    uint64 last_seq_num = 2;
 }
 
 message RegisterReply {
