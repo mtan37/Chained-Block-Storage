@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -9,6 +10,7 @@
 #include <cstring>
 
 #include <fcntl.h>
+#include <openssl/md5.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -75,6 +77,7 @@ static void read_metadata(metadata_entry* buf, long volume_offset) {
   int file_offset = volume_offset / BLOCK_SIZE * sizeof(metadata_entry) + BLOCK_SIZE;
   if (pread(fd, buf, sizeof(metadata_entry), file_offset) == -1) {
     perror("read");
+    std::cout << volume_offset << std::endl;
     exit(1);
   }
 }
@@ -191,6 +194,11 @@ void init_volume(std::string volume_name) {
   for (int i = num_total_blocks; i < blocks_in_file; ++i) {
     free_blocks.push(i);
   }
+}
+
+void close_volume() {
+  fsync(fd);
+  close(fd);
 }
 
 void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
@@ -321,6 +329,31 @@ long get_sequence_number() {
   return read_sequence_num();
 }
 
+std::string checksum() {
+  char data[BLOCK_SIZE];
+  int results_size = NUM_BLOCKS * MD5_DIGEST_LENGTH;
+  unsigned char* results = new unsigned char[results_size];
 
+  for (long i = 0; i < NUM_BLOCKS; ++i) {
+    read_aligned(data, i*BLOCK_SIZE);
+    MD5((unsigned char*) data, BLOCK_SIZE, results + i*MD5_DIGEST_LENGTH);
+  }
+
+  unsigned char final_result[MD5_DIGEST_LENGTH];
+
+  MD5(results, results_size, final_result);
+
+  std::string to_return;
+  std::stringstream ss;
+  ss << std::hex;
+  for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+    ss << results[i];
+  }
+  ss >> to_return;
+
+  delete[] results;
+
+  return to_return;
+}
 
 } // namespace Storage

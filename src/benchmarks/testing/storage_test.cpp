@@ -174,6 +174,14 @@ void test7() {
   }
 }
 
+void test8() {
+  std::string checksum = Storage::checksum();
+  Storage::close_volume();
+  Storage::open_volume("storageTest.volume");
+  std::string checksum2 = Storage::checksum();
+  assert(checksum == checksum2);
+}
+
 int main(int argc, char** argv) {
   Storage::open_volume("storageTest.volume");
 
@@ -184,6 +192,7 @@ int main(int argc, char** argv) {
   test5();
   test6();
   test7();
+  test8();
   
   std::cout << "All storage tests passed" << std::endl;
   return 0;
