@@ -34,6 +34,8 @@ void commit(long sequence_number, long file_offset[2], long volume_offset);
 // Get the most recent commited sequence number
 long get_sequence_number();
 
+std::string checksum();
+
 } // namespace Storage
 
 #endif //__STORAGE_HPP

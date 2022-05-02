@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <iostream>
 #include <queue>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -9,6 +10,7 @@
 #include <cstring>
 
 #include <fcntl.h>
+#include <openssl/md5.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -448,6 +450,32 @@ long get_sequence_number() {
   return first_block.last_committed;
 }
 
+std::string checksum() {
+  char data[BLOCK_SIZE];
+  int results_size = NUM_BLOCKS * MD5_DIGEST_LENGTH;
+  unsigned char* results = new unsigned char[results_size];
+
+  for (int i = 0; i < NUM_BLOCKS; ++i) {
+    read_aligned(data, i*BLOCK_SIZE);
+    MD5((unsigned char*) data, BLOCK_SIZE, results + i*MD5_DIGEST_LENGTH);
+  }
+
+  unsigned char final_result[MD5_DIGEST_LENGTH];
+
+  MD5(results, results_size, final_result);
+
+  std::string to_return;
+  std::stringstream ss;
+  ss << std::hex;
+  for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
+    ss << results[i];
+  }
+  ss >> to_return;
+
+  delete[] results;
+
+  return to_return;
+}
 
 
 } // namespace Storage
