@@ -96,7 +96,6 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *curr
     std::list<master::Node*> drop_list;
     drop_list.push_back(current);
     master::Node* next_good, prev_good;
-    int backoff = 1;
     switch (current->state){  // state of failed node
         case (server::SINGLE):
             // Against our policy
@@ -109,9 +108,10 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *curr
             cout << "Head failed" << endl;
             // context and reply
             server::ChangeModeReply cm_reply;
-            grpc::ClientContext cm_context;
             server::State newState;
             while (true) {
+                grpc::ClientContext cm_context;
+                cout << "... checking next available node" << endl;
                 // set request params for change_mode
                 next_good = *(++it);
                 //TODO: Is just breaking ok?  This would mean no more valid nodes
@@ -122,6 +122,7 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *curr
                 else newState = server::HEAD;
                 cm_request.set_new_state(newState);
                 // Attempt to update next node
+                cout << "... Making gRPC call" << endl;
                 grpc::Status status = next_good->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
                 if (!status.ok()) {
                     if (status.error_code() == grpc::UNAVAILABLE) {
@@ -142,8 +143,6 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *curr
                     master::head = next_good;
                     break;
                 }
-                sleep(backoff);
-                backoff += 2;
             }
             break;
         }

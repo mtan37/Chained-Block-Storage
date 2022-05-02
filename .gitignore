@@ -1,5 +1,8 @@
+# Ignore all
+*
+# Unignore all with extensions
+!*.*
+# Unignore all dirs
+!*/
+
 build/
-master
-server
-src/benchmarks/testing/test_tables
-src/benchmarks/testing/replay_log_test
