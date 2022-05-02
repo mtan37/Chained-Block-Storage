@@ -54,19 +54,26 @@ grpc::Status master::NodeListenerImpl::Register (
         backoff += 2;
     }
 
+    // need to ID new state for old tail before changeMode
+    server::State old_tail_state;
+    if (tail == head) old_tail_state = server::HEAD;
+    else old_tail_state = server::MIDDLE;
+
     /**
      * If new node is not first node then we need to bring volume up to speed
      */
     if (!master::nodeList.empty()){
-        // set reqeust params for current tail
+        // set request params for current tail
         server::ChangeModeRequest cm_request;
         server::ServerIp * next_addr = cm_request.mutable_next_addr();
         next_addr->set_ip(newNode->ip);
         next_addr->set_port(newNode->port);
+        cm_request.set_last_seq_num(request->last_seq_num());
+        cm_request.set_new_state(old_tail_state);
+
+        // context and reply
         server::ChangeModeReply cm_reply;
         grpc::ClientContext cm_context;
-        //TODO: Handle sequence numbers
-
 
         // Update node it is no longer tail, it identifies what its
         // Current plan is to block here until new node is brought online
@@ -94,7 +101,7 @@ grpc::Status master::NodeListenerImpl::Register (
             backoff += 2;
         }
 
-        // Set reply from master
+        // Set reply from master - adds IP of old tail
         master::ServerIp * reply_addr = reply->mutable_prev_addr();
         reply_addr->set_ip(master::tail->ip);
         reply_addr->set_port(master::tail->port);
@@ -112,8 +119,7 @@ grpc::Status master::NodeListenerImpl::Register (
             master::head = newNode;
         } else {
             // Update old tail state
-            if (tail == head) tail->state = server::HEAD;
-            else tail->state = server::MIDDLE;
+            tail->state = old_tail_state;
             // Update tail position on master
             newNode->state = server::TAIL;
         }

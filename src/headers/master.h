@@ -21,6 +21,7 @@ namespace master {
     extern master::Node *head;
     extern master::Node *tail;
     extern std::mutex nodeList_mtx;
+
     // methods
     extern void print_nodes();
     extern void build_node_stub(master::Node* node);

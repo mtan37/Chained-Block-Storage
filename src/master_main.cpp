@@ -20,6 +20,7 @@ namespace master {
     master::Node *tail;
     std::mutex nodeList_mtx;
 
+
     string print_state(server::State state) {
         switch (state) {
             case server::HEAD:
@@ -72,6 +73,7 @@ namespace master {
 void run_service(grpc::Server *server, std::string serviceName) {
   std::cout << "Starting to " << serviceName << "\n";
   server->Wait();
+  std::cout << "Will no longer " << serviceName << "\n";
 }
 
 /**
@@ -86,21 +88,84 @@ void run_service(grpc::Server *server, std::string serviceName) {
  *      iv.  Mid, 3+ nodes, head fails, become new head
  *      v. Mid, 3+ nodes, tail fails, become the new tail
  */
-void hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *current ){
+int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *current, std::list<master::Node*> nList){
     // Need to deal with failure
     //TODO How do we deal with multiple nodes failing at the same time?
     //TODO Are we going to allow for N-1 failures, but say only 1 at a time?
-    cout << "Connection dropped" << endl;
-    if (current == master::head){
-        // Head failure
-        cout << "Head failed" << endl;
-    } else if (current == master::tail) {
-        cout << "Tail failed" << endl;
-    } else {
-        // Could actually be mid, or new
-        cout << "Other node failed" << endl;
+    cout << "heartbeat failed on " << master::print_state(current->state) << endl;
+    std::list<master::Node*> drop_list;
+    drop_list.push_back(current);
+    master::Node* next_good, prev_good;
+    int backoff = 1;
+    switch (current->state){  // state of failed node
+        case (server::SINGLE):
+            // Against our policy
+            cout << "All nodes have failed" << endl;
+            break;
+        case (server::HEAD): {
+            // If head failed, need to move forward until you find new head
+            // If failures along the way need to remove them from list as well
+            // if we run out of nodes we are in trouble
+            cout << "Head failed" << endl;
+            // context and reply
+            server::ChangeModeReply cm_reply;
+            grpc::ClientContext cm_context;
+            server::State newState;
+            while (true) {
+                // set request params for change_mode
+                next_good = *(++it);
+                //TODO: Is just breaking ok?  This would mean no more valid nodes
+                if (it == nList.end()) break;
+                // setup request details, only need to let it know of new status as head
+                server::ChangeModeRequest cm_request;
+                if (next_good->state == server::TAIL) newState = server::SINGLE;
+                else newState = server::HEAD;
+                cm_request.set_new_state(newState);
+                // Attempt to update next node
+                grpc::Status status = next_good->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
+                if (!status.ok()) {
+                    if (status.error_code() == grpc::UNAVAILABLE) {
+                        cout << "...next node unavailable" << endl;
+                    } else if (status.error_code() == grpc::UNIMPLEMENTED) {
+                        cout << "...next node has not exposed calls" << endl;
+                    } else {
+                        cout << "...Error: Something unexpected happened. Aborting registration" << endl;
+                        cout << status.error_code() << ": " << status.error_message()
+                             << endl;
+                    }
+                    // any failure means it comes of the list for now
+                    drop_list.push_back(next_good);
+                } else {
+                    cout << "...next available has been notified of its new status as "
+                         << master::print_state(newState) << endl;
+                    next_good->state = newState;
+                    master::head = next_good;
+                    break;
+                }
+                sleep(backoff);
+                backoff += 2;
+            }
+            break;
+        }
+        case (server::TAIL):
+            // if tail fails, we need to notify upstream node it is new tail
+            cout << "Tail failed" << endl;
+            break;
+        case (server::MIDDLE):
+            cout << "Mid node failed" << endl;
+            break;
+        default:
+            cout << "Initializing node failed" << endl;
     }
 
+    // Remove items in droplist from true node_list
+    std::list<master::Node*>::iterator drop_it;
+//    master::nodeList_mtx.lock();
+    for (drop_it = drop_list.begin(); drop_it != drop_list.end(); drop_it++){
+        master::nodeList.remove(*drop_it);
+    }
+    master::print_nodes();
+//    master::nodeList_mtx.unlock();
 }
 /**
  * Normal operations, just ensures no nodes have gone down
@@ -113,6 +178,7 @@ void run_heartbeat(){
     google::protobuf::Empty reply;
     bool hb_two = false;
     while (true){
+        int sleep_time = master::HEARTBEAT;
         master::nodeList_mtx.lock();
         std::list<master::Node*> copy_node_list(master::nodeList);
         master::nodeList_mtx.unlock();
@@ -121,9 +187,8 @@ void run_heartbeat(){
         hb_two = !hb_two;
         //
         std::list<master::Node*>::iterator it;
-
         master::Node *current;
-        master::Node *prev;
+//        master::Node *prev;
         for (it = copy_node_list.begin(); it != copy_node_list.end(); it++){
             current = *it;
 //            cout << "About to call heartbeat on node " << current->port << endl;
@@ -131,17 +196,19 @@ void run_heartbeat(){
             grpc::Status status = current->stub->HeartBeat(&context, request, &reply);
             if (!status.ok()){
                 if (status.error_code() == grpc::UNAVAILABLE) {
-                    // If we do need to reconfigure how do we deal with it?
-                    hlp_Manage_Failure(it, current);
+                    // Deal with failure, lock while we correct setup so no new nodes join
+//                    master::nodeList_mtx.lock();
+                    int resp = hlp_Manage_Failure(it, current, copy_node_list);
+                    // If we get resp of -1 we are out of nodes
+                    sleep_time = 0;
+                    break;
+//                    master::nodeList_mtx.unlock();
                 } else if (status.error_code() == grpc::UNIMPLEMENTED) {
-                    // Heartbeat can happen as soon as server is registered, but
-                    // the server itself may not have listener set up immediately
-                    // So comment but keep going
+                    // element not exposed for some reason
                     cout << "Server not ready to receive heartbeat" << endl;
                     cout << status.error_code() << ": " << status.error_message()  
                          << endl;
-                    sleep(2);
-                    build_node_stub(current);
+//                    build_node_stub(current);
                 } else {
                     cout << "Something unexpected happened. Shutting down the server\n";
                     cout << status.error_code() << ": " << status.error_message()
@@ -150,8 +217,7 @@ void run_heartbeat(){
                 }
             }
         }
-
-        sleep(master::HEARTBEAT);
+        sleep(sleep_time);
     }
 
 }

@@ -22,9 +22,11 @@ int my_port = Constants::SERVER_PORT;
 namespace server {
     server::Node *downstream;
     server::Node *upstream;
+    std::mutex changemode_mtx;
     State state;
     std::unique_ptr<grpc::Server> headService;
     std::unique_ptr<grpc::Server> tailService;
+
 
     string get_state(State state) {
         switch (state) {
@@ -53,7 +55,7 @@ namespace server {
     void run_service(grpc::Server *server, std::string serviceName) {
         std::cout << "Starting to " << serviceName << "\n";
         server->Wait();
-        cout << "Ending " << serviceName << endl;
+        cout << "Will no longer " << serviceName << endl;
     }
 
     /*
@@ -94,6 +96,14 @@ namespace server {
         std::thread (server::run_service, server::headService.get(), "listen as head").detach();
     }
 
+    void build_node_stub(server::Node* node){
+        string node_addr(node->ip + ":" + to_string(node->port));
+        grpc::ChannelArguments args;
+        args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
+        node->stub = server::NodeListener::NewStub(channel);
+    }
+
 };
 
 
@@ -104,24 +114,25 @@ namespace server {
  * @return
  */
 int register_server() {
-    // Set our state
+    // Set up our state variables
     server::downstream = new server::Node;
     server::upstream = new server::Node;
-
-    // call master to register self - build channel and stub
-    string master_address = master_ip + ":" + Constants::MASTER_PORT;
-    grpc::ChannelArguments args;
-    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
-
-
-    // Need to set our own IP here to send into request
+    // Get setup to call master->register
+    // Set up our request
     master::RegisterRequest request;
     master::ServerIp * serverIP = request.mutable_server_ip();
     serverIP->set_ip(my_ip);
     serverIP->set_port(my_port);
-
-    // hold reply
+    // TODO: We need to identify true last sequence number
+    // might be able to use get_sequence_number() in storage.cpp?
+    request.set_last_seq_num(0);
+    // Create container for reply
     master::RegisterReply reply;
+    // Register with master server
+    string master_address = master_ip + ":" + Constants::MASTER_PORT;
+    grpc::ChannelArguments args;
+    args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+    int backoff = 1;
     while (true){
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
         std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
@@ -132,25 +143,25 @@ int register_server() {
         // tail, or have been brought up as single server and act as source of truth
         if (!status.ok()) {
             cout << "Can't contact master at " << master_address << endl;
-//            sleep(1);
         } else {
             cout << "Was able to contact master" << endl;
             break;
         }
+        sleep(backoff);
+        backoff += 1;
     }
-
-//    sleep(4);
-    // Building communication with current tail
+    // Set state, and if present build communication with old tail
     if (reply.has_prev_addr()) {
         master::ServerIp prev_addy_ip = reply.prev_addr();
         server::upstream->ip =  prev_addy_ip.ip();
         server::upstream->port =  prev_addy_ip.port();
         //build channel stub to upstream
-        string node_addr(server::upstream->ip + ":" + to_string(server::upstream->port));
-        grpc::ChannelArguments args;
-        args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
-        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
-        server::upstream->stub = server::NodeListener::NewStub(channel);
+        server::build_node_stub(server::upstream);
+//        string node_addr(server::upstream->ip + ":" + to_string(server::upstream->port));
+//        grpc::ChannelArguments args;
+//        args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+//        std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
+//        server::upstream->stub = server::NodeListener::NewStub(channel);
         //TODO: Test this connection works?
         server::state = server::TAIL;
     } else { // Starting in single server mode
@@ -232,6 +243,8 @@ int parse_args(int argc, char** argv){
             master_ip = std::string(argv[++arg]);
         } else if (argx == "-port") {
             my_port =  stoi(std::string(argv[++arg]));
+        } else if (argx == "-ip") {
+            my_ip =  stoi(std::string(argv[++arg]));
         } else {
             print_usage();
             return -1;

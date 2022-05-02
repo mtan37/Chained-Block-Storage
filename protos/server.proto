@@ -19,8 +19,9 @@ message ClientRequestId {
 message ChangeModeRequest {
     ServerIp prev_addr = 1;
     ServerIp next_addr = 2;
+    int32 new_state = 3;
     // seq num of the last received write in NEXT node
-    uint64 last_seq_num = 3;
+    uint64 last_seq_num = 4;
 }
 
 message ChangeModeReply {

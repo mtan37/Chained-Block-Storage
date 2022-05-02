@@ -17,6 +17,7 @@ namespace server {
     };
     extern server::Node *downstream;
     extern server::Node *upstream;
+    extern std::mutex changemode_mtx;
     enum State { HEAD, TAIL, MIDDLE, SINGLE, INITIALIZE, TRANSITION };
     extern State state;
     extern std::unique_ptr<grpc::Server> tailService;
@@ -26,6 +27,7 @@ namespace server {
     extern void kill_tail();
     extern void launch_head();
     extern void run_service(grpc::Server *, std::string);
+    extern void build_node_stub(server::Node* node);
 }
 
 class server::MasterListenerImpl final : public server::MasterListener::Service {
