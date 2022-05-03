@@ -68,6 +68,12 @@ include_directories(src/headers)
 # add all the table implementations
 FILE(GLOB TableImpls ./src/tablesImpl/*.cpp)
 
+if (USE_NONATOMIC_VOLUME)
+  set(_VOLUME_CPP ./src/storage-nonatomic.cpp)
+else()
+  set(_VOLUME_CPP ./src/storage.cpp)
+endif()
+
 # c++ targets
 foreach(_target server)
   add_executable(${_target} 
@@ -108,11 +114,29 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target replay_log_test sent_list_test pending_queue_test)
+foreach(_target replay_log_test sent_list_test pending_queue_test storage_test)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
     ${TableImpls}
     ./src/headers/server.h
+    ${_VOLUME_CPP}
+    )
+
+  target_compile_features(${_target} PRIVATE cxx_std_17)
+  target_compile_options(${_target} PRIVATE -fPIC)
+
+  target_link_libraries(${_target}
+    server_grpc_proto
+  )
+endforeach()
+
+# compile benchmarks
+foreach(_target storage_benchmark)
+  add_executable(${_target} 
+    ./src/benchmarks/${_target}.cpp
+    ${TableImpls}
+    ./src/headers/server.h
+    ${_VOLUME_CPP}
     )
 
   target_compile_features(${_target} PRIVATE cxx_std_17)

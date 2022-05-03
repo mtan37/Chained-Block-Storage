@@ -4,6 +4,6 @@ export MY_INSTALL_DIR=$HOME/.local
 rm -r build
 mkdir build
 cd build
-cmake -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR ..
+cmake -DUSE_NONATOMIC_VOLUME=0 -DCMAKE_PREFIX_PATH=$MY_INSTALL_DIR ..
 make clean
 make
