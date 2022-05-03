@@ -77,7 +77,6 @@ static void read_metadata(metadata_entry* buf, long volume_offset) {
   int file_offset = volume_offset / BLOCK_SIZE * sizeof(metadata_entry) + BLOCK_SIZE;
   if (pread(fd, buf, sizeof(metadata_entry), file_offset) == -1) {
     perror("read");
-    std::cout << volume_offset << std::endl;
     exit(1);
   }
 }
@@ -199,6 +198,13 @@ void init_volume(std::string volume_name) {
 void close_volume() {
   fsync(fd);
   close(fd);
+  fd = -1;
+  num_total_blocks = 0;
+  uncommitted_writes.clear();
+  pending_blocks.clear();
+  while (free_blocks.size() != 0) {
+    free_blocks.pop();
+  }
 }
 
 void write(std::string buf, long volume_offset, long sequence_number) {
@@ -366,20 +372,26 @@ std::string checksum() {
   int results_size = NUM_BLOCKS * MD5_DIGEST_LENGTH;
   unsigned char* results = new unsigned char[results_size];
 
+  metadata_entry entry;
+  int used = 0;
   for (long i = 0; i < NUM_BLOCKS; ++i) {
-    read_aligned(data, i*BLOCK_SIZE);
-    MD5((unsigned char*) data, BLOCK_SIZE, results + i*MD5_DIGEST_LENGTH);
+    read_metadata(&entry, i*BLOCK_SIZE);
+    if (entry.file_block_num) {
+      read_aligned(data, i*BLOCK_SIZE);
+      MD5((unsigned char*) data, BLOCK_SIZE, results + used);
+      used += MD5_DIGEST_LENGTH;
+    }
   }
 
   unsigned char final_result[MD5_DIGEST_LENGTH];
 
-  MD5(results, results_size, final_result);
+  MD5(results, used, final_result);
 
   std::string to_return;
   std::stringstream ss;
   ss << std::hex;
   for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
-    ss << results[i];
+    ss << (int)final_result[i];
   }
   ss >> to_return;
 

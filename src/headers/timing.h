@@ -7,7 +7,7 @@
 #define NANOS_PER_SEC (1000*1000*1000l)
 
 #define DO_TRIALS(setup, task, trials, var) {                                  \
-  var = NANOS_PER_SEC;                                                         \
+  var = 60*60*NANOS_PER_SEC;                                                   \
   struct timespec _start, _end;                                                \
   unsigned long _total_time = 0;                                               \
   for (int _i = 0; _i < trials; ++_i) {                                        \
@@ -43,6 +43,9 @@ void print_result(char* name, double nanos) {
     printf("%10.2f us", nanos/1000);
     if (nanos > 1000000) {
       printf("%10.2f ms", nanos/1000000);
+      if (nanos > 1000000000) {
+        printf("%10.2f ms", nanos/1000000000);
+      }
     }
   }
   printf("\n");

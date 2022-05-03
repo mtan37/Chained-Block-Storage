@@ -338,6 +338,12 @@ void init_volume(std::string volume_name) {
 void close_volume() {
   fsync(fd);
   close(fd);
+  fd = -1;
+  uncommitted_writes.clear();
+  pending_blocks.clear();
+  while(free_blocks.size() != 0) {
+    free_blocks.pop();
+  }
 }
 
 void write(std::string buf, long volume_offset, long sequence_number) {
@@ -502,20 +508,50 @@ std::string checksum() {
   int results_size = NUM_BLOCKS * MD5_DIGEST_LENGTH;
   unsigned char* results = new unsigned char[results_size];
 
-  for (int i = 0; i < NUM_BLOCKS; ++i) {
-    read_aligned(data, i*BLOCK_SIZE);
-    MD5((unsigned char*) data, BLOCK_SIZE, results + i*MD5_DIGEST_LENGTH);
+  int used = 0;
+
+  for (int i = 0; i < NUM_FIRST_LEVEL; ++i) {
+    int64_t first_block_num = first_block.first_level_blocks[i];
+    if (first_block_num != 0) {
+      metadata_block first_block;
+      read_block(&first_block, first_block_num);
+
+      for (int j = 0; j < NUM_INDIRECT; ++j) {
+        int64_t second_block_num = first_block.indirect_block[j];
+        if (second_block_num != 0) {
+          metadata_block second_block;
+          read_block(&second_block, second_block_num);
+
+          for (int k = 0; k < NUM_INDIRECT; ++k) {
+            int64_t third_block_num = second_block.indirect_block[k];
+            if (third_block_num != 0) {
+              metadata_block third_block;
+              read_block(&third_block, third_block_num);
+
+              for (int l = 0; l < NUM_ENTRIES; ++l) {
+                int64_t data_block_num = third_block.last_level_block[l].file_block_num;
+                if (data_block_num != 0) {
+                  read_block(data, data_block_num);
+                  MD5((unsigned char*) data, BLOCK_SIZE, results + used);
+                  used += MD5_DIGEST_LENGTH;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   unsigned char final_result[MD5_DIGEST_LENGTH];
 
-  MD5(results, results_size, final_result);
+  MD5(results, used, final_result);
 
   std::string to_return;
   std::stringstream ss;
   ss << std::hex;
   for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
-    ss << results[i];
+    ss << (int)results[i];
   }
   ss >> to_return;
 
