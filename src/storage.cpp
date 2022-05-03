@@ -414,6 +414,51 @@ void read(char* buf, long volume_offset) {
   }
 }
 
+bool read_sequence_number(std::string& buf, long seq_num, long volume_offset) {
+  buf.resize(BLOCK_SIZE);
+  return read_sequence_number(buf.data(), seq_num, volume_offset);
+}
+
+bool read_sequence_number(std::vector<char>& buf, long seq_num, long volume_offset) {
+  buf.resize(BLOCK_SIZE);
+  return read_sequence_number(&buf[0], seq_num, volume_offset);
+}
+
+bool read_sequence_number(char *buf, long seq_num, long volume_offset) {
+  uncommitted_write* uw = uncommitted_writes[seq_num];
+  if (uw == nullptr) {
+    return false;
+  }
+
+  int64_t remainder = volume_offset % BLOCK_SIZE;
+
+  if (remainder) {
+    int64_t offset = volume_offset - remainder;
+    char buf1[BLOCK_SIZE];
+    metadata_block mdb;
+    read_block(&mdb, uw->new_metadata_offset[0]);
+    read_block(&mdb, mdb.indirect_block[get_second_level(offset)]);
+    read_block(&mdb, mdb.indirect_block[get_third_level(offset)]);
+    read_block(buf1, mdb.last_level_block[get_last_level(offset)].file_block_num);
+    memcpy(buf, buf1 + remainder, BLOCK_SIZE - remainder);
+
+    offset += BLOCK_SIZE;
+    read_block(&mdb, uw->new_metadata_offset[1]);
+    read_block(&mdb, mdb.indirect_block[get_second_level(offset)]);
+    read_block(&mdb, mdb.indirect_block[get_third_level(offset)]);
+    read_block(buf1, mdb.last_level_block[get_last_level(offset)].file_block_num);
+    memcpy(buf + BLOCK_SIZE - remainder, buf1, remainder);
+  }
+  else {
+    metadata_block mdb;
+    read_block(&mdb, uw->new_metadata_offset[0]);
+    read_block(&mdb, mdb.indirect_block[get_second_level(volume_offset)]);
+    read_block(&mdb, mdb.indirect_block[get_third_level(volume_offset)]);
+    read_block(buf, mdb.last_level_block[get_last_level(volume_offset)].file_block_num);
+  }
+  return true;
+}
+
 void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);

@@ -175,6 +175,28 @@ void test8() {
   assert(checksum == checksum2);
 }
 
+void test9() {
+  char data[4096];
+  
+  long seq_num = Storage::get_sequence_number();
+
+  //test read sequence number
+  long offset = 8*4096 + 2048;
+  for (int i = 0; i < 4096/16; ++i) {
+    snprintf(data + 16*i, 16, "%15d", i);
+  }
+  Storage::write(data, offset, ++seq_num);
+  assert(Storage::read_sequence_number(data, seq_num, offset));
+  for (int i = 0; i < 4096/16; ++i) {
+    char* actual = data + 16*i;
+    char expected[16];
+    snprintf(expected, sizeof(expected), "%15d", i);
+    assert(strcmp(actual, expected) == 0);
+  }
+  Storage::commit(seq_num, offset);
+
+}
+
 int main(int argc, char** argv) {
   Storage::open_volume("storageTest.volume");
 
@@ -186,6 +208,7 @@ int main(int argc, char** argv) {
   test6();
   test7();
   //test8();
+  test9();
   
   std::cout << "All storage tests passed" << std::endl;
   return 0;

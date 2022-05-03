@@ -25,6 +25,12 @@ void read(std::string& buf, long volume_offset);
 void read(std::vector<char>& buf, long volume_offset);
 void read(char* buf, long volume_offset);
 
+// Read the data written in given sequence number if it is not committed.
+// Return true if the sequence number is in the uncommitted list, false otherwise
+bool read_sequence_number(std::string& buf, long seq_num, long volume_offset);
+bool read_sequence_number(std::vector<char>& buf, long seq_num, long volume_offset);
+bool read_sequence_number(char* buf, long seq_num, long volume_offset);
+
 // Commit a write operation by modifying metadata and updating the most-resent
 // marker
 void commit(long sequence_number, long volume_offset);
