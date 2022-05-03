@@ -76,6 +76,7 @@ void run_service(grpc::Server *server, std::string serviceName) {
   std::cout << "Will no longer " << serviceName << "\n";
 }
 
+
 /**
  * Change Node Scenerios
  *  a) Normal operations
@@ -88,42 +89,50 @@ void run_service(grpc::Server *server, std::string serviceName) {
  *      iv.  Mid, 3+ nodes, head fails, become new head
  *      v. Mid, 3+ nodes, tail fails, become the new tail
  */
-int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *current, std::list<master::Node*> nList){
-    // Need to deal with failure
-    //TODO How do we deal with multiple nodes failing at the same time?
-    //TODO Are we going to allow for N-1 failures, but say only 1 at a time?
+int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *current, std::list<master::Node*>* nList){
+    master::Node* try_next;
+    int move_it = 0;
+    server::State end_state;
+    master::Node* update_node;
+    master::Node* stop_at_node;
+    bool run_endpoint = false;
+    //
     cout << "heartbeat failed on " << master::print_state(current->state) << endl;
     std::list<master::Node*> drop_list;
     drop_list.push_back(current);
-    master::Node* next_good, prev_good;
+    //
     switch (current->state){  // state of failed node
         case (server::SINGLE):
             // Against our policy
             cout << "All nodes have failed" << endl;
             break;
-        case (server::HEAD): {
-            // If head failed, need to move forward until you find new head
-            // If failures along the way need to remove them from list as well
-            // if we run out of nodes we are in trouble
-            cout << "Head failed" << endl;
+        case (server::HEAD):
+        case (server::TAIL):
+        {
             // context and reply
             server::ChangeModeReply cm_reply;
             server::State newState;
-            while (true) {
+            bool keep_going = true;
+            // identify end of list
+            if (current->state == server::HEAD) stop_at_node = master::tail;
+            else stop_at_node = master::head;
+            while (keep_going) {
                 grpc::ClientContext cm_context;
                 cout << "... checking next available node" << endl;
                 // set request params for change_mode
-                next_good = *(++it);
-                //TODO: Is just breaking ok?  This would mean no more valid nodes
-                if (it == nList.end()) break;
+                if (current->state == server::HEAD) it++;
+                else it--;
+                // if at end point, stop.  Either this
+                try_next = *(it);
+                if (try_next == stop_at_node) keep_going = false;
                 // setup request details, only need to let it know of new status as head
                 server::ChangeModeRequest cm_request;
-                if (next_good->state == server::TAIL) newState = server::SINGLE;
-                else newState = server::HEAD;
+                if (!keep_going) newState = server::SINGLE; // hit end of list, only single node left
+                else newState = current->state;
+
                 cm_request.set_new_state(newState);
                 // Attempt to update next node
-                cout << "... Making gRPC call" << endl;
-                grpc::Status status = next_good->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
+                grpc::Status status = try_next->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
                 if (!status.ok()) {
                     if (status.error_code() == grpc::UNAVAILABLE) {
                         cout << "...next node unavailable" << endl;
@@ -135,27 +144,69 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it, master::Node *curr
                              << endl;
                     }
                     // any failure means it comes of the list for now
-                    drop_list.push_back(next_good);
+                    drop_list.push_back(try_next);
                 } else {
-                    cout << "...next available has been notified of its new status as "
-                         << master::print_state(newState) << endl;
-                    next_good->state = newState;
-                    master::head = next_good;
+                    try_next->state = newState;
+                    if (current->state == server::HEAD) master::head = try_next;
+                    else master::tail = try_next;
                     break;
                 }
             }
             break;
         }
-        case (server::TAIL):
-            // if tail fails, we need to notify upstream node it is new tail
-            cout << "Tail failed" << endl;
-            break;
         case (server::MIDDLE):
             cout << "Mid node failed" << endl;
             break;
         default:
             cout << "Initializing node failed" << endl;
     }
+    // deal with head and tail failure
+//    if (run_endpoint){
+//        // context and reply
+//        server::ChangeModeReply cm_reply;
+//        server::State newState;
+//        bool keep_going = true;
+//        // identify end of list
+//        if (current->state == server::HEAD) stop_at_node = master::tail;
+//        else stop_at_node = master::head;
+//        while (keep_going) {
+//            grpc::ClientContext cm_context;
+//            cout << "... checking next available node" << endl;
+//            // set request params for change_mode
+//            if (current->state == server::HEAD) it++;
+//            else it--;
+//            // if at end point, stop.  Either this
+//            try_next = *(it);
+//            if (try_next == stop_at_node) keep_going = false;
+//            // setup request details, only need to let it know of new status as head
+//            server::ChangeModeRequest cm_request;
+//            if (!keep_going) newState = server::SINGLE; // hit end of list, only single node left
+//            else newState = current->state;
+//
+//            cm_request.set_new_state(newState);
+//            // Attempt to update next node
+//            grpc::Status status = try_next->stub->ChangeMode(&cm_context, cm_request, &cm_reply);
+//            if (!status.ok()) {
+//                if (status.error_code() == grpc::UNAVAILABLE) {
+//                    cout << "...next node unavailable" << endl;
+//                } else if (status.error_code() == grpc::UNIMPLEMENTED) {
+//                    cout << "...next node has not exposed calls" << endl;
+//                } else {
+//                    cout << "...Error: Something unexpected happened. Aborting registration" << endl;
+//                    cout << status.error_code() << ": " << status.error_message()
+//                         << endl;
+//                }
+//                // any failure means it comes of the list for now
+//                drop_list.push_back(try_next);
+//            } else {
+//                try_next->state = newState;
+//                if (current->state == server::HEAD) master::head = try_next;
+//                else master::tail = try_next;
+////                update_node = try_next;
+//                break;
+//            }
+//        }
+//    }
 
     // Remove items in droplist from true node_list
     std::list<master::Node*>::iterator drop_it;
@@ -197,7 +248,7 @@ void run_heartbeat(){
                 if (status.error_code() == grpc::UNAVAILABLE) {
                     // Deal with failure, lock while we correct setup so no new nodes join
 //                    master::nodeList_mtx.lock();
-                    int resp = hlp_Manage_Failure(it, current, copy_node_list);
+                    int resp = hlp_Manage_Failure(it, current, &copy_node_list);
                     // If we get resp of -1 we are out of nodes
                     sleep_time = 0;
                     break;

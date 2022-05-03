@@ -47,7 +47,7 @@ grpc::Status master::NodeListenerImpl::Register (
                 return hb_status;
             }
         } else {
-            cout << "...Was able to initiate communication" << endl;
+            cout << "...Was able to initiate communication with new node" << endl;
             break;
         }
         sleep(backoff);
