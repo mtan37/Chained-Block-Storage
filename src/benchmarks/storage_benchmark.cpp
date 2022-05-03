@@ -11,8 +11,7 @@ void sequential_write() {
   char data[4096];
   memset(data, 1, sizeof(data));
   int offset = -1;
-  long offsets[2];
-  DO_TRIALS(++offset;, Storage::write(data, offset, offsets, offset+1);, 100000, nanos);
+  DO_TRIALS(++offset;, Storage::write(data, offset, offset+1);, 100000, nanos);
   print_result("Sequential write", nanos);
   Storage::close_volume();
 }
@@ -23,10 +22,9 @@ void sequential_write_commit() {
   char data[4096];
   memset(data, 1, sizeof(data));
   int offset = -1;
-  long offsets[2];
   DO_TRIALS(++offset;, {
-    Storage::write(data, offset, offsets, offset+1); 
-    Storage::commit(offset+1, offsets, offset);
+    Storage::write(data, offset, offset+1); 
+    Storage::commit(offset+1, offset);
   }, 10000, nanos);
   print_result("Sequential write-commit", nanos);
   Storage::close_volume();

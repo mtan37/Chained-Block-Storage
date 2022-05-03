@@ -340,17 +340,19 @@ void close_volume() {
   close(fd);
 }
 
-void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(buf.data(), volume_offset, file_offset, sequence_number);
+void write(std::string buf, long volume_offset, long sequence_number) {
+  write(buf.data(), volume_offset, sequence_number);
 }
 
-void write(std::vector<char> buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(&buf[0], volume_offset, file_offset, sequence_number);
+void write(std::vector<char> buf, long volume_offset, long sequence_number) {
+  write(&buf[0], volume_offset, sequence_number);
 }
 
-void write(const char* buf, long volume_offset, long file_offset[2], long sequence_number) {
+void write(const char* buf, long volume_offset, long sequence_number) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
+  int64_t file_offset[2];
+  
   if (remainder) {
     int64_t offset = volume_offset - remainder;
     char buf1[BLOCK_SIZE];
@@ -412,7 +414,7 @@ void read(char* buf, long volume_offset) {
   }
 }
 
-void commit(long sequence_number, long file_offset[2], long volume_offset) {
+void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
 

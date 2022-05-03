@@ -201,15 +201,15 @@ void close_volume() {
   close(fd);
 }
 
-void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(buf.data(), volume_offset, file_offset, sequence_number);
+void write(std::string buf, long volume_offset, long sequence_number) {
+  write(buf.data(), volume_offset, sequence_number);
 }
 
-void write(std::vector<char> buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(&buf[0], volume_offset, file_offset, sequence_number);
+void write(std::vector<char> buf, long volume_offset, long sequence_number) {
+  write(&buf[0], volume_offset, sequence_number);
 }
 
-void write(const char* buf, long volume_offset, long file_offset[2], long sequence_number) {
+void write(const char* buf, long volume_offset, long sequence_number) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   uncommitted_write* uw = new uncommitted_write;
@@ -224,7 +224,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     read(buf1, offset);
     memcpy(buf1 + remainder, buf, BLOCK_SIZE - remainder);
     write_block(buf1, block_num);
-    file_offset[0] = block_num;
+    uw->new_file_offset[0] = block_num;
     pending_blocks[offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
@@ -236,7 +236,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     read(buf1, offset);
     memcpy(buf1, buf + BLOCK_SIZE - remainder, remainder);
     write_block(buf1, block_num);
-    file_offset[1] = block_num;
+    uw->new_file_offset[1] = block_num;
     pending_blocks[offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
@@ -247,16 +247,14 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     int64_t block_num = get_free_block_num();
     read_metadata(&entry, volume_offset);
     write_block(buf, block_num);
-    file_offset[0] = block_num;
-    file_offset[1] = 0;
+    uw->new_file_offset[0] = block_num;
+    uw->new_file_offset[1] = 0;
     pending_blocks[volume_offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
     }
   }
 
-  uw->new_file_offset[0] = file_offset[0];
-  uw->new_file_offset[1] = file_offset[1];
   uncommitted_writes[sequence_number] = uw;
 }
 
@@ -289,7 +287,7 @@ void read(char* buf, long volume_offset) {
   }
 }
 
-void commit(long sequence_number, long file_offset[2], long volume_offset) {
+void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
 
