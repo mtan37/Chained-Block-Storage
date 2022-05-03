@@ -43,7 +43,7 @@ foreach(_target server master)
         ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
           --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
           -I "${${_target}_proto_path}"
-          --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+          --plugin=protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}
           "${${_target}_proto}"
         DEPENDS "${${_target}_proto}")
 
