@@ -123,7 +123,7 @@ int register_server() {
     master::ServerIp * serverIP = request.mutable_server_ip();
     serverIP->set_ip(my_ip);
     serverIP->set_port(my_port);
-    // TODO: We need to identify true last sequence number
+    //TODO: We need to identify true last sequence number
     // might be able to use get_sequence_number() in storage.cpp?
     request.set_last_seq_num(0);
     // Create container for reply

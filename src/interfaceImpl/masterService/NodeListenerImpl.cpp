@@ -29,12 +29,12 @@ grpc::Status master::NodeListenerImpl::Register (
     // setup channel
     build_node_stub(newNode);
     // Send heartbeat and wait until it can receive requests before adding to list
-    grpc::ClientContext hb_context;
     google::protobuf::Empty hb_request;
     google::protobuf::Empty hb_reply;
     int backoff = 1;
     // If you don't run heartbeat here, it seems to struggle intermittently after adding head and tail services
     while (true) {
+        grpc::ClientContext hb_context;
         grpc::Status hb_status = newNode->stub->HeartBeat(&hb_context, hb_request, &hb_reply);
         if (!hb_status.ok()) {
             if (hb_status.error_code() == grpc::UNAVAILABLE ||

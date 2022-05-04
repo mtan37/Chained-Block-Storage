@@ -93,7 +93,6 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             default:
                 break;
         }
-
         if (clear_upstream) {
             server::upstream->ip = "";
             server::upstream->port = -1;
@@ -104,9 +103,25 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             server::downstream->port = -1;
             server::downstream->stub = nullptr;
         }
-
-        server::state = new_state;
+    } else {
+        // state is the same, mid-failure, need to return sequence number
+        if (request->has_prev_addr()){ // we are m+1 in mid failure
+            // TODO: Add my last seq # to reply
+            reply->set_lastreceivedseqnum(0);
+            cout << "I am m+1 in mid failure, returning my sequence number" << endl;
+            cout << "my upstream addy is " <<  server::upstream->ip << ":" << server::upstream->port;
+        }
+        if (request->has_next_addr()){ // we are m-1 in mid failure
+            // TODO: Here is were we deal with updating m+1
+            cout << "I am m-1 in mid failure, need to update m+1" << endl;
+            cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port;
+        }
     }
+
+
+
+    server::state = new_state;
+
     cout << "...New state = " << server::get_state(server::state) << endl;
     changemode_mtx.unlock();
     return grpc::Status::OK;
