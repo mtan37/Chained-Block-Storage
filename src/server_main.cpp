@@ -6,7 +6,8 @@
 #include <google/protobuf/empty.pb.h>
 
 #include "constants.hpp"
-#include "tables.hpp" 
+#include "tables.hpp"
+#include "storage.hpp" 
 #include "master.h"
 #include "server.h"
 
@@ -18,6 +19,10 @@ using namespace std;
 string master_ip = "";
 string my_ip = "0.0.0.0";
 int my_port = Constants::SERVER_PORT;
+
+namespace Tables {
+    int currentSeq = 0;
+};
 
 namespace server {
     server::Node *downstream;
@@ -180,12 +185,8 @@ void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            if (server::state != server::TAIL) {
-                string next_node_address = server::downstream->ip + ":" + to_string(server::downstream->port);
-                grpc::ChannelArguments args;
-                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
-                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(next_node_address, grpc::InsecureChannelCredentials(), args);
-                std::unique_ptr<server::NodeListener::Stub> next_node_stub = server::NodeListener::NewStub(channel);
+            while (server::state != server::TAIL) {
+            
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
 
@@ -193,34 +194,51 @@ void relay_write_background() {
                 request.set_offset(pending_entry.volumeOffset);
                 request.set_seqnum(pending_entry.seqNum);
                 google::protobuf::Empty RelayWriteReply;
+                server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
+                clientRequestId->set_ip(pending_entry.reqId.ip());
+                clientRequestId->set_pid(pending_entry.reqId.pid());
+                google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
+                timestamp = pending_entry.reqId.timestamp();
 
-                grpc::Status status = next_node_stub->RelayWrite(&context, request, &RelayWriteReply);
+                grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
 
-                if (!status.ok()) {
-                    cout << "Failed to relay write to next node" << endl;
-                    //TODO: Retry? Or put back on the pending queue
-                }
+                if (!status.ok()) break;
+                
             } //End forwarding if non-tail
 
-            //TODO: write locally
+            
+            //Need clarification on file vs volume offset
+            Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
 
             //Add to sent list
             Tables::SentList::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
-            //TODO: Where does file offset come from?
             sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
 
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            //Add to replay log
-            //TODO: This needs to be moved over to write()
-            int addResult = Tables::replayLog.addToLog(pending_entry.reqId);
+            while (server::state == server::TAIL) {
+                //Commit
+                Storage::commit(pending_entry.seqNum, pending_entry.volumeOffset);
 
-            if (addResult < 0) {}// means entry already exist in log or has been acked
+                Tables::replayLog.commitLogEntry(pending_entry.reqId);
+                Tables::commitSeq = (int) pending_entry.seqNum;
 
-            if (server::state == server::TAIL) {
-                //TODO: commit
-                //TODO: send an ack backwards?
+                //send an ack backwards
+                grpc::ClientContext relay_context;
+                google::protobuf::Empty RelayWriteAckReply;
+                server::RelayWriteAckRequest request;
+                request.set_seqnum(pending_entry.seqNum);
+                server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
+                clientRequestId->set_ip(pending_entry.reqId.ip());
+                clientRequestId->set_pid(pending_entry.reqId.pid());
+                google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
+                timestamp = pending_entry.reqId.timestamp();
+
+                grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
+
+                if (!status.ok()) break;
+
             }
         }
     }

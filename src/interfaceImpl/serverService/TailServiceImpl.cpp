@@ -11,7 +11,9 @@ grpc::Status server::TailServiceImpl::WriteAck (
     grpc::ServerContext *context,
     const server::WriteAckRequest *request,
     server::WriteAckReply *reply) {
-        if (request->seqnum() <= Tables::commitSeq)
+    
+        int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
+        if (result == 0)
             reply->set_committed(true);
         else
             reply->set_committed(false);

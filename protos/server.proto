@@ -52,7 +52,6 @@ service HeadService {
 
 message WriteAckRequest {
     ClientRequestId clientRequestId = 1;
-    uint64 seqNum = 2;
 }
 
 message WriteAckReply {
@@ -78,10 +77,12 @@ message RelayWriteRequest {
     bytes data = 1;
     uint64 offset = 2;
     uint64 seqNum = 3;
+    ClientRequestId clientRequestId = 4;
 }
 
 message RelayWriteAckRequest {
     uint64 seqNum = 1;
+    ClientRequestId clientRequestId = 2;
 }
 
 message ReplayLogChangeRequest {

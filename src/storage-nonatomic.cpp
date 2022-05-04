@@ -77,7 +77,6 @@ static void read_metadata(metadata_entry* buf, long volume_offset) {
   int file_offset = volume_offset / BLOCK_SIZE * sizeof(metadata_entry) + BLOCK_SIZE;
   if (pread(fd, buf, sizeof(metadata_entry), file_offset) == -1) {
     perror("read");
-    std::cout << volume_offset << std::endl;
     exit(1);
   }
 }
@@ -199,17 +198,24 @@ void init_volume(std::string volume_name) {
 void close_volume() {
   fsync(fd);
   close(fd);
+  fd = -1;
+  num_total_blocks = 0;
+  uncommitted_writes.clear();
+  pending_blocks.clear();
+  while (free_blocks.size() != 0) {
+    free_blocks.pop();
+  }
 }
 
-void write(std::string buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(buf.data(), volume_offset, file_offset, sequence_number);
+void write(std::string buf, long volume_offset, long sequence_number) {
+  write(buf.data(), volume_offset, sequence_number);
 }
 
-void write(std::vector<char> buf, long volume_offset, long file_offset[2], long sequence_number) {
-  write(&buf[0], volume_offset, file_offset, sequence_number);
+void write(std::vector<char> buf, long volume_offset, long sequence_number) {
+  write(&buf[0], volume_offset, sequence_number);
 }
 
-void write(const char* buf, long volume_offset, long file_offset[2], long sequence_number) {
+void write(const char* buf, long volume_offset, long sequence_number) {
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   uncommitted_write* uw = new uncommitted_write;
@@ -224,7 +230,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     read(buf1, offset);
     memcpy(buf1 + remainder, buf, BLOCK_SIZE - remainder);
     write_block(buf1, block_num);
-    file_offset[0] = block_num;
+    uw->new_file_offset[0] = block_num;
     pending_blocks[offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
@@ -236,7 +242,7 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     read(buf1, offset);
     memcpy(buf1, buf + BLOCK_SIZE - remainder, remainder);
     write_block(buf1, block_num);
-    file_offset[1] = block_num;
+    uw->new_file_offset[1] = block_num;
     pending_blocks[offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
@@ -247,16 +253,14 @@ void write(const char* buf, long volume_offset, long file_offset[2], long sequen
     int64_t block_num = get_free_block_num();
     read_metadata(&entry, volume_offset);
     write_block(buf, block_num);
-    file_offset[0] = block_num;
-    file_offset[1] = 0;
+    uw->new_file_offset[0] = block_num;
+    uw->new_file_offset[1] = 0;
     pending_blocks[volume_offset] = block_num;
     if (entry.file_block_num) {
       uw->to_free.push_back(entry.file_block_num);
     }
   }
 
-  uw->new_file_offset[0] = file_offset[0];
-  uw->new_file_offset[1] = file_offset[1];
   uncommitted_writes[sequence_number] = uw;
 }
 
@@ -289,7 +293,41 @@ void read(char* buf, long volume_offset) {
   }
 }
 
-void commit(long sequence_number, long file_offset[2], long volume_offset) {
+bool read_sequence_number(std::string& buf, long seq_num, long volume_offset) {
+  buf.resize(BLOCK_SIZE);
+  return read_sequence_number(buf.data(), seq_num, volume_offset);
+}
+
+bool read_sequence_number(std::vector<char>& buf, long seq_num, long volume_offset) {
+  buf.resize(BLOCK_SIZE);
+  return read_sequence_number(&buf[0], seq_num, volume_offset);
+}
+
+bool read_sequence_number(char *buf, long seq_num, long volume_offset) {
+  uncommitted_write* uw = uncommitted_writes[seq_num];
+  if (uw == nullptr) {
+    return false;
+  }
+
+  int64_t remainder = volume_offset % BLOCK_SIZE;
+
+  if (remainder) {
+    int64_t offset = volume_offset - remainder;
+    char buf1[BLOCK_SIZE];
+    read_block(buf1, uw->new_file_offset[0]);
+    memcpy(buf, buf1 + remainder, BLOCK_SIZE - remainder);
+
+    offset += BLOCK_SIZE;
+    read_block(buf1, uw->new_file_offset[1]);
+    memcpy(buf + BLOCK_SIZE - remainder, buf1, remainder);
+  }
+  else {
+    read_block(buf, uw->new_file_offset[0]);
+  }
+  return true;
+}
+
+void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
 
@@ -334,20 +372,26 @@ std::string checksum() {
   int results_size = NUM_BLOCKS * MD5_DIGEST_LENGTH;
   unsigned char* results = new unsigned char[results_size];
 
+  metadata_entry entry;
+  int used = 0;
   for (long i = 0; i < NUM_BLOCKS; ++i) {
-    read_aligned(data, i*BLOCK_SIZE);
-    MD5((unsigned char*) data, BLOCK_SIZE, results + i*MD5_DIGEST_LENGTH);
+    read_metadata(&entry, i*BLOCK_SIZE);
+    if (entry.file_block_num) {
+      read_aligned(data, i*BLOCK_SIZE);
+      MD5((unsigned char*) data, BLOCK_SIZE, results + used);
+      used += MD5_DIGEST_LENGTH;
+    }
   }
 
   unsigned char final_result[MD5_DIGEST_LENGTH];
 
-  MD5(results, results_size, final_result);
+  MD5(results, used, final_result);
 
   std::string to_return;
   std::stringstream ss;
   ss << std::hex;
   for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
-    ss << results[i];
+    ss << (int)final_result[i];
   }
   ss >> to_return;
 

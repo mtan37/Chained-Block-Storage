@@ -10,18 +10,21 @@ grpc::Status server::HeadServiceImpl::Write (
     const server::WriteRequest *request,
     server::WriteReply *reply) {
         
-        // TODO: Check replay log 
+
+        //Add to replay log
+        int addResult = Tables::replayLog.addToLog(request->clientrequestid());
+
+        if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
         Tables::PendingQueue::pendingQueueEntry entry;
-        entry.seqNum = Tables::writeSeq;
+        entry.seqNum = Tables::currentSeq;
         entry.volumeOffset = request->offset();
         entry.data = request->data();
-        //TODO: Include clientID in RelayWrite requests?
         
         Tables::pendingQueue.pushEntry(entry);
         
-        reply->set_seqnum(Tables::writeSeq);
-        Tables::writeSeq++;
+        reply->set_seqnum(Tables::currentSeq);
+        Tables::currentSeq++;
         
         return grpc::Status::OK;
 }
