@@ -44,7 +44,7 @@ void print_result(char* name, double nanos) {
     if (nanos > 1000000) {
       printf("%10.2f ms", nanos/1000000);
       if (nanos > 1000000000) {
-        printf("%10.2f ms", nanos/1000000000);
+        printf("%10.2f s", nanos/1000000000);
       }
     }
   }

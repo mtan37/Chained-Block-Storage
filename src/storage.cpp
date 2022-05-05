@@ -242,6 +242,10 @@ static void write_metadata(uncommitted_write& uw,
 
 namespace Storage {
 
+std::string get_storage_type() {
+  return "atomic";
+}
+
 void open_volume(std::string volume_name) {
   init_storage(volume_name.c_str());
 

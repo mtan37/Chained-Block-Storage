@@ -6,6 +6,9 @@
 
 namespace Storage {
 
+// return the name of storage system being used
+std::string get_storage_type();
+
 // Open and initialize an existing volume, or reate empty one if name doesn't exist
 void open_volume(std::string volume_name);
 

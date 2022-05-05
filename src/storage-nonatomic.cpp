@@ -133,6 +133,10 @@ static int64_t get_free_block_num() {
 
 namespace Storage {
 
+std::string get_storage_type() {
+  return "non-atomic";
+}
+
 void open_volume(std::string volume_name) {
   init_storage(volume_name.c_str());
 
