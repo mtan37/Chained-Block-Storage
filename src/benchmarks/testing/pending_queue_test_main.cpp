@@ -2,6 +2,7 @@
 #include <thread>
 #include "server.h"
 #include "tables.hpp"
+#include "test.h"
 
 int popFromEmptyQueue() {
     // add an invalid entry, and make sure it returns the exception

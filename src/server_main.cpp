@@ -17,7 +17,7 @@ using namespace std;
 
 // Global variables
 string master_ip = "";
-string my_ip = "0.0.0.0";
+
 int my_port = Constants::SERVER_PORT;
 
 namespace Tables {
@@ -31,7 +31,7 @@ namespace server {
     State state;
     std::unique_ptr<grpc::Server> headService;
     std::unique_ptr<grpc::Server> tailService;
-
+    std::string my_ip = "0.0.0.0";
 
     string get_state(State state) {
         switch (state) {
@@ -126,7 +126,7 @@ int register_server() {
     // Set up our request
     master::RegisterRequest request;
     master::ServerIp * serverIP = request.mutable_server_ip();
-    serverIP->set_ip(my_ip);
+    serverIP->set_ip(server::my_ip);
     serverIP->set_port(my_port);
     //TODO: We need to identify true last sequence number
     // might be able to use get_sequence_number() in storage.cpp?
@@ -262,7 +262,7 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-port") {
             my_port =  stoi(std::string(argv[++arg]));
         } else if (argx == "-ip") {
-            my_ip =  stoi(std::string(argv[++arg]));
+            server::my_ip =  stoi(std::string(argv[++arg]));
         } else {
             print_usage();
             return -1;
@@ -290,7 +290,7 @@ int main(int argc, char *argv[]) {
     std::thread relay_write_thread(relay_write_background);
 
     // Start listening to master - TODO: Probably doesn't need to launch as thread
-    std::string my_address(my_ip + ":" + to_string(my_port));
+    std::string my_address(server::my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl masterListenerImpl;
     grpc::ServerBuilder masterListenerBuilder;
     masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());

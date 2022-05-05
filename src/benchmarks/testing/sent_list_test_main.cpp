@@ -2,6 +2,7 @@
 #include <thread>
 #include "server.h"
 #include "tables.hpp"
+#include "test.h"
 
 int popFromEmptyMap() {
     try {

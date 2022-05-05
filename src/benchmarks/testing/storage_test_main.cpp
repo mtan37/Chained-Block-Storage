@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "storage.hpp"
+#include "test.h"
 
 void test1() {
   char data[4096];
