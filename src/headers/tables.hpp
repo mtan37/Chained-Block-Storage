@@ -138,6 +138,20 @@ namespace Tables {
              */
             void printRelayLogContent();
 
+            /**
+             * @brief initialize the replay log to the passed in UpdateReplayLogRequest
+             * Note the current content will be lost if the log is not empty
+             * 
+             */
+            void initRelayLogContent(server::UpdateReplayLogRequest content);
+
+            /**
+             * @brief get a copy of the replay log content in the passed in 
+             * UpdateReplayLogRequest structure
+             * 
+             */
+            void getRelayLogContent(server::UpdateReplayLogRequest &content);
+
         private:
             struct replayLogEntry {
                 int test_val = 1;

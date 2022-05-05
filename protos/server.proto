@@ -98,3 +98,21 @@ service NodeListener {
 
     rpc ReplayLogChange(ReplayLogChangeRequest) returns (google.protobuf.Empty) {}
 }
+
+
+message ReplayLogEntry {
+    string identifier = 1;
+    repeated google.protobuf.Timestamp timestamp = 2;
+}
+
+message UpdateReplayLogRequest {
+    repeated ReplayLogEntry entires = 1;
+}
+
+// service hosted on a new node that just started up
+// Creating a new service so it is seperated from normal operation
+// the special write used to bring new node up to speed can be added to here as well
+service RecoveryService {
+    // brings replay log content up to date
+    rpc UpdateReplayLog(UpdateReplayLogRequest) returns (google.protobuf.Empty) {}
+}
