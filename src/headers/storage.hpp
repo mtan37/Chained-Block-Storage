@@ -1,6 +1,7 @@
 #ifndef __STORAGE_HPP
 #define __STORAGE_HPP
 
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,10 @@ void read(char* buf, long volume_offset);
 bool read_sequence_number(std::string& buf, long seq_num, long volume_offset);
 bool read_sequence_number(std::vector<char>& buf, long seq_num, long volume_offset);
 bool read_sequence_number(char* buf, long seq_num, long volume_offset);
+
+// Return a list of offset, sequence_number pairs that have been comitted since the
+// given sequence number
+std::vector<std::pair<long, long>> get_modified_offsets(long seq_num);
 
 // Commit a write operation by modifying metadata and updating the most-resent
 // marker

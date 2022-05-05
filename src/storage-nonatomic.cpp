@@ -331,6 +331,18 @@ bool read_sequence_number(char *buf, long seq_num, long volume_offset) {
   return true;
 }
 
+std::vector<std::pair<long, long>> get_modified_offsets(long seq_num) {
+  std::vector<std::pair<long, long>> results;
+  metadata_entry entry;
+  for (long i = 0; i < NUM_BLOCKS; ++i) {
+    read_metadata(&entry, i*BLOCK_SIZE);
+    if (entry.last_updated > seq_num) {
+      results.push_back({i*BLOCK_SIZE, entry.last_updated});
+    }
+  }
+  return results;
+}
+
 void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
