@@ -71,7 +71,27 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         && (old_state == server::TAIL || old_state == server::SINGLE)){
         //TODO: This is where we call function to deal with integrating new tail (i.e initialize new tail volume)
         //downstream->init_new_tail(request->last_seq_num());
+        server::RestoreRequest restoreRequest;
+        std::vector<std::pair<long, long>> restoreOffsets = Storage::get_modified_offsets(request->last_seq_num());
+        for (auto i : restoreOffsets) {
+            server::RestoreEntry *restoreEntry = restoreRequest.add_entry();
+            restoreEntry->set_offset(i.first);
+            restoreEntry->set_seqnum(i.second);
+            char* buf = new char[4096];
+            Storage::read(buf, i.first);
+            restoreEntry->set_data(buf);
+        }
+        google::protobuf::Empty restoreReply;
+        grpc::ClientContext restoreContext;
+        downstream->stub->Restore(&restoreContext, restoreRequest, &restoreReply);
         cout << "...initialize new tail - last seq # was " << request->last_seq_num() << endl;
+        
+        //TODO: Forward replay log
+        grpc::ClientContext replayContext;
+        server::UpdateReplayLogRequest replayRequest;
+        Tables::replayLog.getRelayLogContent(replayRequest);
+        google::protobuf::Empty replayReply;
+        downstream->stub->UpdateReplayLog(&replayContext, replayRequest, &replayReply);
     }
 
     if (new_state != old_state) {

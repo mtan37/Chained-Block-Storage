@@ -90,15 +90,15 @@ message ReplayLogChangeRequest {
     repeated ClientRequestId clientRequestIdList = 1;
 }
 
-service NodeListener {
-    // relay write to the next node in the chain, return right away
-    rpc RelayWrite(RelayWriteRequest) returns (google.protobuf.Empty) {}
-    // ack to relayed write
-    rpc RelayWriteAck(RelayWriteAckRequest) returns (google.protobuf.Empty) {}
-
-    rpc ReplayLogChange(ReplayLogChangeRequest) returns (google.protobuf.Empty) {}
+message RestoreEntry {
+    bytes data = 1;
+    uint64 offset = 2; 
+    uint64 seqNum = 3;
 }
 
+message RestoreRequest {
+    repeated RestoreEntry entry = 1;
+}
 
 message ReplayLogEntry {
     string identifier = 1;
@@ -109,10 +109,16 @@ message UpdateReplayLogRequest {
     repeated ReplayLogEntry entires = 1;
 }
 
-// service hosted on a new node that just started up
-// Creating a new service so it is seperated from normal operation
-// the special write used to bring new node up to speed can be added to here as well
-service RecoveryService {
-    // brings replay log content up to date
+service NodeListener {
+    // relay write to the next node in the chain, return right away
+    rpc RelayWrite(RelayWriteRequest) returns (google.protobuf.Empty) {}
+    // ack to relayed write
+    rpc RelayWriteAck(RelayWriteAckRequest) returns (google.protobuf.Empty) {}
+
+    rpc ReplayLogChange(ReplayLogChangeRequest) returns (google.protobuf.Empty) {}
+    
+    // Restore new tail
+    rpc Restore(RestoreRequest) returns (google.protobuf.Empty) {}
+    
     rpc UpdateReplayLog(UpdateReplayLogRequest) returns (google.protobuf.Empty) {}
 }
