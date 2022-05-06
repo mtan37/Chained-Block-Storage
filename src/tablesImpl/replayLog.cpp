@@ -190,4 +190,12 @@ namespace Tables {
             }
         }
     }
+
+    void initRelayLogContent(server::UpdateReplayLogRequest content) {
+        // TODO
+    }
+
+    void getRelayLogContent(server::UpdateReplayLogRequest &content) {
+        // TODO
+    }
 }

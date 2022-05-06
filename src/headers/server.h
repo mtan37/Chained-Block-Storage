@@ -21,6 +21,7 @@ namespace server {
     enum State { HEAD, TAIL, MIDDLE, SINGLE, INITIALIZE, TRANSITION };
     extern State state;
     extern std::unique_ptr<grpc::Server> tailService;
+    extern std::string my_ip;
     // methods
     extern string get_state(server::State state);
     extern void launch_tail();

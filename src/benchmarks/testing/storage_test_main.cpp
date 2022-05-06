@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "storage.hpp"
+#include "test.h"
 
 void test1() {
   char data[4096];
@@ -198,8 +199,25 @@ void test9() {
 
 }
 
+void test10() {
+  //test that storage system gives correct updated blocks
+  char data[4096];
+  memset(data, 0, 4096);
+  long seq_num = Storage::get_sequence_number();
+  for (int i = 0; i < 10; ++i) {
+    Storage::write(data, i*4096, seq_num + i + 1);
+    Storage::commit(seq_num + i + 1, i*4096);
+  }
+  std::vector<std::pair<long, long>> updated = Storage::get_modified_offsets(seq_num);
+  assert(updated.size() == 10);
+  for (int i = 0; i < 10; ++i) {
+    assert(updated[i].first == i*4096);
+    assert(updated[i].second == seq_num + 1 + i);
+  }
+}
+
 int main(int argc, char** argv) {
-  Storage::open_volume("storageTest.volume");
+  Storage::init_volume("storageTest.volume");
 
   test1();
   test2();
@@ -210,6 +228,7 @@ int main(int argc, char** argv) {
   test7();
   test8();
   test9();
+  test10();
   
   std::cout << "All storage tests passed" << std::endl;
   return 0;

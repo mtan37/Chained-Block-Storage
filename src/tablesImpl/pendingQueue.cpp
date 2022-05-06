@@ -3,9 +3,6 @@
 #include "tables.hpp"
 
 namespace Tables {
-   int writeSeq = 0;
-   int commitSeq = 0;
-
    PendingQueue pendingQueue;
 
    void PendingQueue::pushEntry(pendingQueueEntry entry) {

@@ -7,6 +7,7 @@
 #include <grpc++/grpc++.h>
 #include "server.h"
 #include "tables.hpp"
+#include "test.h"
 
 using namespace std;
 

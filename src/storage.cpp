@@ -242,6 +242,10 @@ static void write_metadata(uncommitted_write& uw,
 
 namespace Storage {
 
+std::string get_storage_type() {
+  return "atomic";
+}
+
 void open_volume(std::string volume_name) {
   init_storage(volume_name.c_str());
 
@@ -463,6 +467,44 @@ bool read_sequence_number(char *buf, long seq_num, long volume_offset) {
     read_block(buf, mdb.last_level_block[get_last_level(volume_offset)].file_block_num);
   }
   return true;
+}
+
+std::vector<std::pair<long, long>> get_modified_offsets(long seq_num) {
+  std::vector<std::pair<long, long>> results;
+  
+  for (int i = 0; i < NUM_FIRST_LEVEL; ++i) {
+    int64_t first_block_num = first_block.first_level_blocks[i];
+    if (first_block_num != 0) {
+      metadata_block first_block;
+      read_block(&first_block, first_block_num);
+
+      for (int j = 0; j < NUM_INDIRECT; ++j) {
+        int64_t second_block_num = first_block.indirect_block[j];
+        if (second_block_num != 0) {
+          metadata_block second_block;
+          read_block(&second_block, second_block_num);
+
+          for (int k = 0; k < NUM_INDIRECT; ++k) {
+            int64_t third_block_num = second_block.indirect_block[k];
+            if (third_block_num != 0) {
+              metadata_block third_block;
+              read_block(&third_block, third_block_num);
+
+              for (int l = 0; l < NUM_ENTRIES; ++l) {
+                int64_t volume_offset = BLOCK_SIZE*(l + NUM_ENTRIES*(k + NUM_INDIRECT*(j + NUM_INDIRECT*i)));
+                int64_t data_seq_num = third_block.last_level_block[l].last_updated;
+                if (data_seq_num > seq_num) {
+                  results.push_back({volume_offset, data_seq_num});
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return results;
 }
 
 void commit(long sequence_number, long volume_offset) {

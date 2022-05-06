@@ -133,6 +133,10 @@ static int64_t get_free_block_num() {
 
 namespace Storage {
 
+std::string get_storage_type() {
+  return "non-atomic";
+}
+
 void open_volume(std::string volume_name) {
   init_storage(volume_name.c_str());
 
@@ -325,6 +329,18 @@ bool read_sequence_number(char *buf, long seq_num, long volume_offset) {
     read_block(buf, uw->new_file_offset[0]);
   }
   return true;
+}
+
+std::vector<std::pair<long, long>> get_modified_offsets(long seq_num) {
+  std::vector<std::pair<long, long>> results;
+  metadata_entry entry;
+  for (long i = 0; i < NUM_BLOCKS; ++i) {
+    read_metadata(&entry, i*BLOCK_SIZE);
+    if (entry.last_updated > seq_num) {
+      results.push_back({i*BLOCK_SIZE, entry.last_updated});
+    }
+  }
+  return results;
 }
 
 void commit(long sequence_number, long volume_offset) {

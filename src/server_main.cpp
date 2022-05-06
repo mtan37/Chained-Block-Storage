@@ -18,12 +18,14 @@ using namespace std;
 // Global variables
 string def_volume_name = "volume";
 string master_ip = "";
-string my_ip = "0.0.0.0";
+
 int my_port = Constants::SERVER_PORT;
 bool start_clean = false;
 
 namespace Tables {
-    int currentSeq = 0;
+    long currentSeq;
+    long writeSeq;
+    long commitSeq;
 };
 
 namespace server {
@@ -33,7 +35,7 @@ namespace server {
     State state;
     std::unique_ptr<grpc::Server> headService;
     std::unique_ptr<grpc::Server> tailService;
-
+    std::string my_ip = "0.0.0.0";
 
     string get_state(State state) {
         switch (state) {
@@ -70,7 +72,7 @@ namespace server {
      * failure scenarios, and must be shutdown appropriately when no longer tail.
      */
     void launch_tail(){
-        std::string my_address(my_ip + ":" + to_string(my_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port));
         server::TailServiceImpl tailServiceImpl;
         grpc::ServerBuilder tailBuilder;
         tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
@@ -90,7 +92,7 @@ namespace server {
      * Launch head.  Head never reverts, so we can detach head service thread.
      */
     void launch_head(){
-        std::string my_address(my_ip + ":" + to_string(my_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port));
         cout << "About to launch head at " << my_address << endl;
         server::HeadServiceImpl headServiceImpl;
         grpc::ServerBuilder headBuilder;
@@ -125,10 +127,10 @@ int register_server() {
     // Set up our request
     master::RegisterRequest request;
     master::ServerIp * serverIP = request.mutable_server_ip();
-    serverIP->set_ip(my_ip);
+    serverIP->set_ip(server::my_ip);
     serverIP->set_port(my_port);
     // add last seq # to request
-    request.set_last_seq_num(Storage::get_sequence_number());
+    request.set_last_seq_num(Tables::commitSeq);
 //    cout << "My last sequence number was " << request.last_seq_num() << endl;
     // Create container for reply
     master::RegisterReply reply;
@@ -183,8 +185,9 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
+            // TODO: Can't just pop anything, need to pop sequentially (i.e 1,2,3 never 1,3,2)
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            while (server::state != server::TAIL) {
+            while (server::state != server::TAIL) { // TODO or SINGLE
             
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
@@ -201,6 +204,7 @@ void relay_write_background() {
 
                 grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
 
+                // TODO: Want to break if status is ok, not if it is not ok
                 if (!status.ok()) break;
                 
             } //End forwarding if non-tail
@@ -210,13 +214,33 @@ void relay_write_background() {
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
 
             //Add to sent list
+            // TODO: With current approach we don't want to add to sent list if tail, but with this layout
+            // we could run into issues if tail state changes while work is in progress both with this
+            // and with committing below, although this is unclear without knowing how we are doing
+            // node integration.  If it needs ops to stop while it builds the list to send downstream
+            // then we need to stop committing until our state changes to T-1. We only ever stop being
+            // tail if a new node is added, at which point our state changes to transition and the new
+            // tail will be brought up to speed.  New writes that come in while this happens need to just
+            // stall until we have a resolution.  But writes in progress could be problematic.
+            // I think the best approach would be to have a lock about here and either add things
+            // to the sent list, or run commit.  When we start to register a new node we need to obtain
+            // that lock, so below either finishes or does not start until the process is complete
+            //
+            // Also keep in mind that in addition to sending over items from volume, we need to forward
+            // sent list to new tail
+            //
+            // An alternative approach would be to add things to sent list either way, and remove
+            // commit code here, then have thread that launches when we launch tail services
+            // that takes things off of sent list and commits them.  We would still need the lock
+            // though.  This approach would stop stack from building up while we are adding new node
+            // but we might not wan
+
             Tables::SentList::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
-
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            while (server::state == server::TAIL) {
+            while (server::state == server::TAIL) { // TODO: or SINGLE
                 //Commit
                 Storage::commit(pending_entry.seqNum, pending_entry.volumeOffset);
 
@@ -224,6 +248,7 @@ void relay_write_background() {
                 Tables::commitSeq = (int) pending_entry.seqNum;
 
                 //send an ack backwards
+                // TODO: Not if we are SINGLE
                 grpc::ClientContext relay_context;
                 google::protobuf::Empty RelayWriteAckReply;
                 server::RelayWriteAckRequest request;
@@ -236,6 +261,7 @@ void relay_write_background() {
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
 
+                // TODO: Want to break if status is ok, not if it is not ok
                 if (!status.ok()) break;
 
             }
@@ -263,11 +289,11 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-port") {
             my_port =  stoi(std::string(argv[++arg]));
         } else if (argx == "-ip") {
-            my_ip =  stoi(std::string(argv[++arg]));
+            server::my_ip =  stoi(std::string(argv[++arg]));
         } else if (argx == "-clean") {
             start_clean = true;
         } else if (argx == "-v") {
-            def_volume_name = std::string(argv[++arg]);
+            def_volume_name = std::string(argv[++arg]);            
         } else {
             print_usage();
             return -1;
@@ -287,12 +313,16 @@ int main(int argc, char *argv[]) {
     if (parse_args(argc, argv) < 0) return -1;
     if (start_clean) Storage::init_volume(def_volume_name);
     else Storage::open_volume(def_volume_name);
+    // TODO: Need to initialize sequence numbers here based on volume
+    Tables::commitSeq = Storage::get_sequence_number(); // last commited write.  relay_write_ack must commit commitSeq+1
+    Tables::writeSeq = Tables::commitSeq; // Sequence number of last item written.  Pending list must pull writeSeq + 1
+    Tables::currentSeq = Tables::writeSeq + 1; // Next available seq number to assign to new write
 
     // Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
 
     // Start listening to master - TODO: Probably doesn't need to launch as thread
-    std::string my_address(my_ip + ":" + to_string(my_port));
+    std::string my_address(server::my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl masterListenerImpl;
     grpc::ServerBuilder masterListenerBuilder;
     masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());

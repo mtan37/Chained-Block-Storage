@@ -2,7 +2,7 @@
 #include "server.h"
 #include "storage.hpp"
 #include <grpc++/grpc++.h>
-
+#include "tables.hpp"
 using namespace std;
 bool hb_two = false;
 /**
@@ -42,6 +42,10 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     const server::ChangeModeRequest *request,
     server::ChangeModeReply *reply) {
     // Need to ensure we are not trying to register new node and change tail state at same time
+    // TODO: Actually, is this an issue?  ChangeNode would be result of upstream failure
+    // Would that interfere with initializing new server? Only upstream IP & stub would be changed
+    // We likely will not be using TRANSITION anyways, so tail will stay tail or beceom SINGLE
+    // which should be ok?
     changemode_mtx.lock();
     server::State old_state = server::state;
     server::state = server::TRANSITION;
@@ -107,23 +111,75 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     } else {
         // state is the same, mid-failure, need to return sequence number
         if (request->has_prev_addr()){ // we are m+1 in mid failure
-            // TODO: What sequence number do we send here.  Should be highest sequenec number
-            // this node has seen, but we don't seem to track this anywhere.  
-            reply->set_lastreceivedseqnum(0);
+            // TODO: Should we have lock around here so we don't start sending commits back
+            // to m-1 before we are able to deal with failure resolution?
+            // on the sent list.  This would correspond to the last seq # written.  If we are here
+            // then we are in mid failure, so writes should be up to date. Might not actually
+            // be an issue for commits.  Only going to remove items form m-1 sent list taht we
+            // have already seen
+            reply->set_lastreceivedseqnum(Tables::writeSeq);
             cout << "I am m+1 in mid failure, returning my sequence number" << endl;
             cout << "my upstream addy is " <<  server::upstream->ip << ":" << server::upstream->port;
         }
+        // TODO: Below is where we send m+1 updated sent list
+        // Same as m-4 We do not want this node to be sending things downstream while we do this? if IP
+        // is updated above then this will be happening. This will add writes to our sent list
+        // which will then get resent below
+        // So we need to to lock downstream->relay_write in relay_write_background.  Since we
+        // are sending things downstream, I think it needs to be the lock
         if (request->has_next_addr()){ // we are m-1 in mid failure
             // TODO: Here is were we deal with updating m+1
             cout << "I am m-1 in mid failure, need to update m+1" << endl;
-            cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port;
+            cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port << endl;
             // Need to generate list of writes and send it to m+1 based on sequence and sent list
-            std::list<SentList::sentListEntry> resend = popSentListRange(request->lastreceivedseqnum());
+            long current_resend_seq = request->last_seq_num()+1;
+            std::list<Tables::SentList::sentListEntry> resend;
+            try{
+                resend = Tables::sentList.popSentListRange(current_resend_seq);
+            } catch (std::length_error){
+                cout << "...No items to update" << endl;
+            }
+
             // need to get data from volume
             // Should be able to send using node->RelayWrite();
-            std::list<sentListEntry>::iterator it;
-            while(it != this->list.end()){
-
+            std::list<Tables::SentList::sentListEntry>::iterator it;
+            for (it = resend.begin(); it != resend.end(); it++){
+                cout << "...iterating through resend list" << endl;
+                Tables::SentList::sentListEntry current = *it;
+                string data = "";
+                if (Storage::read_sequence_number(data, current_resend_seq, current.volumeOffset)){
+                    // Found in volume, should be good to go
+                    grpc::ClientContext context;
+                    server::RelayWriteRequest request;
+                    // setup request
+                    request.set_data(data);
+                    request.set_offset(current.volumeOffset);
+                    request.set_seqnum(current_resend_seq);
+                    // Copy sent list client ID over to request
+                    server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
+                    clientRequestId->set_ip(current.reqId.ip());
+                    clientRequestId->set_pid(current.reqId.pid());
+                    google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
+                    timestamp = current.reqId.timestamp();
+                    // hold reply
+                    google::protobuf::Empty RelayWriteReply;
+                    // send downstream
+                    while(true){
+                        grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
+                        if (!status.ok()) {
+                            cout << "...Error: Unable to send sent list item to m+1, trying again " <<  endl;
+                            cout << status.error_code() << ": " << status.error_message()
+                                 << endl;
+                        } else {
+                            cout << "...Sent " << current_resend_seq << endl;
+                            break;
+                        }
+                    }
+                } else {
+                    // Not sure what we would do here
+                    cout << "Unexpected error occurred while dealing with downstream mid failure" << endl;
+                }
+                current_resend_seq++;
             }
         }
     }

@@ -5,6 +5,13 @@
 using namespace std;
 
 
+/**
+ * Get write from client, add to pending queue, update current seq
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
 grpc::Status server::HeadServiceImpl::Write (
     grpc::ServerContext *context,
     const server::WriteRequest *request,
@@ -13,7 +20,6 @@ grpc::Status server::HeadServiceImpl::Write (
 
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
-
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
         Tables::PendingQueue::pendingQueueEntry entry;

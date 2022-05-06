@@ -13,15 +13,15 @@
 
 namespace Tables {
 
-    extern int writeSeq;
-    extern int commitSeq;
-    extern int currentSeq;
+    extern long writeSeq; // What is the sequence number of the last written item
+    extern long commitSeq; // what was the sequence number of the last committed write
+    extern long currentSeq; // What is the next available sequence number to assign to a new write
 
     class PendingQueue {
         public:
             struct pendingQueueEntry {
-                int seqNum = -1;
-                int volumeOffset = -1;
+                long seqNum = -1;
+                long volumeOffset = -1;
                 //Not sure what type data needs to be yet
                 std::string data = "";
                 server::ClientRequestId reqId;
@@ -54,8 +54,8 @@ namespace Tables {
         public:
             struct sentListEntry {
                 server::ClientRequestId reqId;
-                int volumeOffset = -1;
-                int fileOffset[2] = {-1,-1};
+                long volumeOffset = -1;
+                int fileOffset[2] = {-1,-1}; // TODO: I dont think we need these anymore?
             };
 
             // Adds sentListEntry onto list. throws invalid_argument if key is already in list
@@ -137,6 +137,20 @@ namespace Tables {
              * 
              */
             void printRelayLogContent();
+
+            /**
+             * @brief initialize the replay log to the passed in UpdateReplayLogRequest
+             * Note the current content will be lost if the log is not empty
+             * 
+             */
+            void initRelayLogContent(server::UpdateReplayLogRequest content);
+
+            /**
+             * @brief get a copy of the replay log content in the passed in 
+             * UpdateReplayLogRequest structure
+             * 
+             */
+            void getRelayLogContent(server::UpdateReplayLogRequest &content);
 
         private:
             struct replayLogEntry {
