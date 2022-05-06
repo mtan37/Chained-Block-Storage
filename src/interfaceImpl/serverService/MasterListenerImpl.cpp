@@ -1,5 +1,6 @@
 #include <iostream>
 #include "server.h"
+#include "storage.hpp"
 #include <grpc++/grpc++.h>
 
 using namespace std;
@@ -106,7 +107,8 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     } else {
         // state is the same, mid-failure, need to return sequence number
         if (request->has_prev_addr()){ // we are m+1 in mid failure
-            // TODO: Add my last seq # to reply
+            // TODO: What sequence number do we send here.  Should be highest sequenec number
+            // this node has seen, but we don't seem to track this anywhere.  
             reply->set_lastreceivedseqnum(0);
             cout << "I am m+1 in mid failure, returning my sequence number" << endl;
             cout << "my upstream addy is " <<  server::upstream->ip << ":" << server::upstream->port;
@@ -115,6 +117,14 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             // TODO: Here is were we deal with updating m+1
             cout << "I am m-1 in mid failure, need to update m+1" << endl;
             cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port;
+            // Need to generate list of writes and send it to m+1 based on sequence and sent list
+            std::list<SentList::sentListEntry> resend = popSentListRange(request->lastreceivedseqnum());
+            // need to get data from volume
+            // Should be able to send using node->RelayWrite();
+            std::list<sentListEntry>::iterator it;
+            while(it != this->list.end()){
+
+            }
         }
     }
 

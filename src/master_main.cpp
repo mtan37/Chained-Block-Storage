@@ -155,7 +155,6 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it){
             break;
         }
         case (server::MIDDLE): {
-            cout << "Mid node failed" << endl;
             // Need to identify next operational nodes downstream and upstream before either change mode,
             // because we need to send in appropriate IPs. Once ID'd send change_mode downstream and
             // get last seq number
@@ -170,8 +169,9 @@ int hlp_Manage_Failure(std::list<master::Node*>::iterator it){
             initial_it = it;
             for (int i = 0; i < 2; i++) {
                 // identify end of list
-                if (i==UP) it = initial_it;
+                if (i==UP) it = initial_it; // reset iterator to failed node
                 bool past_endpoint = false;
+                // End points help ID when we reached end\start of node list
                 if (i == DOWN) endpoint_node = master::tail;
                 else endpoint_node = master::head;
                 while (true) {

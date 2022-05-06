@@ -16,9 +16,11 @@
 using namespace std;
 
 // Global variables
+string def_volume_name = "volume";
 string master_ip = "";
 string my_ip = "0.0.0.0";
 int my_port = Constants::SERVER_PORT;
+bool start_clean = false;
 
 namespace Tables {
     int currentSeq = 0;
@@ -75,8 +77,6 @@ namespace server {
         tailBuilder.RegisterService(&tailServiceImpl);
         // Thread server out and start listening
         server::tailService = tailBuilder.BuildAndStart();
-        //server::tailService(tailBuilder.BuildAndStart());
-//        std::thread tail_service_thread(server::run_service, tailService.get(), "listen as tail");
         std::thread (server::run_service, tailService.get(), "listen as tail").detach();
     }
 
@@ -101,6 +101,7 @@ namespace server {
         std::thread (server::run_service, server::headService.get(), "listen as head").detach();
     }
 
+    // Generic method to build up and downstream stubs
     void build_node_stub(server::Node* node){
         string node_addr(node->ip + ":" + to_string(node->port));
         grpc::ChannelArguments args;
@@ -108,9 +109,7 @@ namespace server {
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
         node->stub = server::NodeListener::NewStub(channel);
     }
-
 };
-
 
 
 /**
@@ -128,9 +127,9 @@ int register_server() {
     master::ServerIp * serverIP = request.mutable_server_ip();
     serverIP->set_ip(my_ip);
     serverIP->set_port(my_port);
-    //TODO: We need to identify true last sequence number
-    // might be able to use get_sequence_number() in storage.cpp?
-    request.set_last_seq_num(0);
+    // add last seq # to request
+    request.set_last_seq_num(Storage::get_sequence_number());
+//    cout << "My last sequence number was " << request.last_seq_num() << endl;
     // Create container for reply
     master::RegisterReply reply;
     // Register with master server
@@ -245,8 +244,10 @@ void relay_write_background() {
 }
 
 void print_usage(){
-    std::cout << "Usage: prog -master <master IP addy (required)>\n" <<
-                              "-port <my port>";
+    std::cout << "Usage: prog -master <master IP addy> (required)>\n" <<
+                              "-port <my port>"
+                              "-clean (initialize volume)"
+                              "-v <volume name>";
 }
 /**
  Parse out arguments sent into program
@@ -263,6 +264,10 @@ int parse_args(int argc, char** argv){
             my_port =  stoi(std::string(argv[++arg]));
         } else if (argx == "-ip") {
             my_ip =  stoi(std::string(argv[++arg]));
+        } else if (argx == "-clean") {
+            start_clean = true;
+        } else if (argx == "-v") {
+            def_volume_name = std::string(argv[++arg]);
         } else {
             print_usage();
             return -1;
@@ -273,11 +278,6 @@ int parse_args(int argc, char** argv){
         print_usage();
         return -1;
     }
-//    if (argc != 2) {
-//        print_usage();
-//        return -1;
-//    }
-//    master_ip = std::string(argv[1]);
     return 0;
 }
 
@@ -285,6 +285,8 @@ int parse_args(int argc, char** argv){
 int main(int argc, char *argv[]) {
     server::state = server::INITIALIZE;
     if (parse_args(argc, argv) < 0) return -1;
+    if (start_clean) Storage::init_volume(def_volume_name);
+    else Storage::open_volume(def_volume_name);
 
     // Write relay and commit ack threads
     std::thread relay_write_thread(relay_write_background);
