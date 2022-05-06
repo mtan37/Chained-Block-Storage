@@ -214,8 +214,8 @@ static void write_metadata(uncommitted_write& uw,
   block[0][2].last_level_block[offsets[0][3]].last_updated = sequence_number;
   if (remainder) {
     int i = (offsets[0][2] == offsets[1][2]) ? 0 : 1;
-    block[i][2].last_level_block[offsets[i+1][3]].file_block_num = file_offset[1];
-    block[i][2].last_level_block[offsets[i+1][3]].last_updated = sequence_number;
+    block[i][2].last_level_block[offsets[1][3]].file_block_num = file_offset[1];
+    block[i][2].last_level_block[offsets[1][3]].last_updated = sequence_number;
   }
   
   // updata indirect block(s)
@@ -343,6 +343,7 @@ void close_volume() {
   fsync(fd);
   close(fd);
   fd = -1;
+  num_total_blocks = 0;
   uncommitted_writes.clear();
   pending_blocks.clear();
   while(free_blocks.size() != 0) {

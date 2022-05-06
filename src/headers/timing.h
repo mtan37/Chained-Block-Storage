@@ -33,18 +33,18 @@ static unsigned long nanos_diff(struct timespec* start, struct timespec* end) {
   return nanos + NANOS_PER_SEC * secs;
 }
 
-void print_result(char* name, double nanos) {
+void print_result(const char* name, double nanos) {
   if (nanos == INFINITY) {
-    printf("%-35s %13s\n", name, "N/A");
+    printf("%-35s %18s\n", name, "N/A");
     return;
   }
-  printf("%-35s %10.2f ns", name, nanos);
+  printf("%-35s %15.2f ns", name, nanos);
   if (nanos > 1000) {
-    printf("%10.2f us", nanos/1000);
+    printf("%12.2f us", nanos/1000);
     if (nanos > 1000000) {
-      printf("%10.2f ms", nanos/1000000);
+      printf("%9.2f ms", nanos/1000000);
       if (nanos > 1000000000) {
-        printf("%10.2f s", nanos/1000000000);
+        printf("%6.2f s", nanos/1000000000);
       }
     }
   }
