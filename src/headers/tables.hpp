@@ -55,7 +55,6 @@ namespace Tables {
             struct sentListEntry {
                 server::ClientRequestId reqId;
                 long volumeOffset = -1;
-                int fileOffset[2] = {-1,-1}; // TODO: I dont think we need these anymore?
             };
 
             // Adds sentListEntry onto list. throws invalid_argument if key is already in list
@@ -63,16 +62,18 @@ namespace Tables {
             // Pops sentListEntry at clientId
             // throws invalid_argument if key is not in list
             sentListEntry popEntry(int seqNum);
+
             /**
-             * returns a range of items >= startSeqNum, removes from sent list,
-             * used for recovery.  If no startSeqNum, or = 0, returns and clears
-             * entire sent list. Removes items as it adds them to the list
+             * returns a range of items >= startSeqNum,
+             * used for recovery.  If no startSeqNum, or = 0, returns
+             * entire sent list.
              *
-             * @param startSeqNum sequence number at which to start returning values, defaults to 0
-             *                     which returns entire list
+             * @param startSeqNum sequence number at which to start 
+             * returning values, defaults to 0 which returns entire list
+             * 
              * @return list of sentListPairs starting at startSeqNum
              */
-            std::list<sentListEntry> popSentListRange(int startSeqNum);
+            std::map<int, sentListEntry> getSentListRange(int startSeqNum);
             // Returns size of sent list
             int getListSize();
             // Prints content of sent list

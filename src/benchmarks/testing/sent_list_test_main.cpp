@@ -59,6 +59,31 @@ void wordloadThread(int seq_start, int seq_end) {
     }
 }
 
+int getEntryRangeTest() {
+    Tables::SentList::sentListEntry sent_entry;
+    Tables::sentList.pushEntry(122, sent_entry);
+    Tables::sentList.pushEntry(123, sent_entry);
+    Tables::sentList.pushEntry(124, sent_entry);
+
+    std::map<int, Tables::SentList::sentListEntry> return_list = Tables::sentList.getSentListRange(122);
+
+    std::map<int, Tables::SentList::sentListEntry>::iterator it = return_list.begin();
+    if (it->first != 122) return -1;
+    it++;
+    if (it->first != 123) return -1;
+    it++;
+    if (it->first != 124) return -1;
+
+    // make sure accessing the entry does not result in memory error
+    server::ClientRequestId reqId = it->second.reqId;
+
+    Tables::sentList.popEntry(122);
+    Tables::sentList.popEntry(123);
+    Tables::sentList.popEntry(124);
+
+    return 0;
+}
+
 void workLoadTest() {
     int x = 1;
     int y = 3;
@@ -91,6 +116,12 @@ int main(int argc, char *argv[]) {
         std::cout << "pushRepeatEntry failed" << std::endl;
     } else {
         std::cout << "pushRepeatEntry passed" << std::endl;
+    }
+
+    if (getEntryRangeTest() < 0) {
+        std::cout << "getEntryRangeTest failed" << std::endl;
+    } else {
+        std::cout << "getEntryRangeTest passed" << std::endl;
     }
 
     // workload simulation test

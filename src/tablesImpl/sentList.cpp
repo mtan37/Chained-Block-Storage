@@ -42,8 +42,8 @@ namespace Tables {
         }
     }
 
-    std::list<SentList::sentListEntry> SentList::popSentListRange(int startSeqNum) {
-        std::list<sentListEntry> returnList;
+    std::map<int, SentList::sentListEntry> SentList::getSentListRange(int startSeqNum) {
+        std::map<int, SentList::sentListEntry> returnList;
         std::map<int, sentListEntry>::iterator it;
 
         list_mutex.lock();
@@ -66,8 +66,8 @@ namespace Tables {
         while(it != this->list.end()){
             sentListEntry returnItem;
             returnItem = it->second;
-            returnList.push_back(returnItem);
-            it = this->list.erase(it);
+            returnList.insert(returnList.end(), std::make_pair(it->first,returnItem));
+            it++;
         }
         list_mutex.unlock();
         return returnList;
@@ -80,9 +80,7 @@ namespace Tables {
     void SentList::printSentList() {
         list_mutex.lock();
         for (auto it=this->list.begin(); it!=this->list.end(); ++it){
-            std::cout << "    [key:file offsetA,B] = [" << it->first << "][" <<
-            it->second.fileOffset[0] << ", " <<
-            it->second.fileOffset[1] << "]" << std::endl;
+            std::cout << "    [key:file offsetA,B] = [" << it->first << "]" << std::endl;
         }
         list_mutex.unlock();
     }
