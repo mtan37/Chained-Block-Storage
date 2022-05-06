@@ -213,7 +213,6 @@ void relay_write_background() {
             //Add to sent list
             Tables::SentList::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
-            sent_entry.fileOffset[0] = 0;  // Defaults to -1, 0 is valid offset
 
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
