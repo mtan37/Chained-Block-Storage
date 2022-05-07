@@ -23,14 +23,14 @@ grpc::Status server::HeadServiceImpl::Write (
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
         Tables::PendingQueue::pendingQueueEntry entry;
-        entry.seqNum = Tables::currentSeq;
+        long seq = Tables::currentSeq++;
+        entry.seqNum = seq;
         entry.volumeOffset = request->offset();
         entry.data = request->data();
         
         Tables::pendingQueue.pushEntry(entry);
         
-        reply->set_seqnum(Tables::currentSeq);
-        Tables::currentSeq++;
+        reply->set_seqnum(seq);
         
         return grpc::Status::OK;
 }

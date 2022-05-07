@@ -155,7 +155,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             long current_resend_seq = request->last_seq_num()+1;
             std::list<Tables::SentList::sentListEntry> resend;
             try{
-                resend = Tables::sentList.popSentListRange(current_resend_seq);
+                //resend = Tables::sentList.popSentListRange(current_resend_seq);
             } catch (std::length_error){
                 cout << "...No items to update" << endl;
             }

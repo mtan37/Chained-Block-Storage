@@ -93,3 +93,4 @@ public:
             google::protobuf::Empty *reply);
 };
 
+void relay_write_ack_background();

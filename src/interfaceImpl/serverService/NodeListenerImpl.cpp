@@ -33,16 +33,16 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *context,
     const server::RelayWriteAckRequest *request,
     google::protobuf::Empty *reply) {
-                
+        
+        while (Tables::commitSeq + 1 != request->seqnum()) {}
         //Remove from sent list
         Tables::SentList::sentListEntry sentListEntry = Tables::sentList.popEntry((int) request->seqnum());
-        // TODO: We need to enforce sequential ordering here as well, must be 1,2,3 never 1,3,2
         Storage::commit(request->seqnum(), sentListEntry.volumeOffset);
         Tables::replayLog.commitLogEntry(request->clientrequestid());
                 
         Tables::commitSeq = (int) request->seqnum();
         
-        while (server::state != HEAD) { // TODO: or SINGLE
+        while (server::state != HEAD || server::state != SINGLE) {
             //Relay to previous nodes
             grpc::ClientContext relay_context;
             google::protobuf::Empty RelayWriteAckReply;
@@ -80,6 +80,6 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *context,
         const server::UpdateReplayLogRequest *request,
         google::protobuf::Empty *reply) {
-        Tables::replayLog.setReplayLogContent(request);
+        Tables::replayLog.initRelayLogContent(*request);
         return grpc::Status::OK;
 }

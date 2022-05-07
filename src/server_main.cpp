@@ -23,7 +23,7 @@ int my_port = Constants::SERVER_PORT;
 bool start_clean = false;
 
 namespace Tables {
-    long currentSeq;
+    std::atomic<long> currentSeq(0);
     long writeSeq;
     long commitSeq;
 };
@@ -80,6 +80,8 @@ namespace server {
         // Thread server out and start listening
         server::tailService = tailBuilder.BuildAndStart();
         std::thread (server::run_service, tailService.get(), "listen as tail").detach();
+        std::thread relay_write_ack_thread(relay_write_ack_background);
+        relay_write_ack_thread.detach();
     }
 
     // We need to kill tail when promoted to mid\head.  But keep in mind that
@@ -185,9 +187,11 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-            // TODO: Can't just pop anything, need to pop sequentially (i.e 1,2,3 never 1,3,2)
+        
+            while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
+            
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            while (server::state != server::TAIL) { // TODO or SINGLE
+            while (server::state != server::TAIL || server::state != server::SINGLE) { 
             
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
@@ -204,8 +208,7 @@ void relay_write_background() {
 
                 grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
 
-                // TODO: Want to break if status is ok, not if it is not ok
-                if (!status.ok()) break;
+                if (status.ok()) break;
                 
             } //End forwarding if non-tail
 
@@ -239,32 +242,43 @@ void relay_write_background() {
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            while (server::state == server::TAIL) { // TODO: or SINGLE
-                //Commit
-                Storage::commit(pending_entry.seqNum, pending_entry.volumeOffset);
+            
+        }
+    }
+}
 
-                Tables::replayLog.commitLogEntry(pending_entry.reqId);
-                Tables::commitSeq = (int) pending_entry.seqNum;
+void relay_write_ack_background() {
+    while (server::state == server::TAIL || server::state == server::SINGLE) { 
+        Tables::SentList::sentListEntry sentListEntry;
+        //Remove from sent list
+        try {
+            long seq = Tables::commitSeq + 1;
+            sentListEntry = Tables::sentList.popEntry((int) seq);
+            //Will throw exception here if seq is not sequentially next
 
-                //send an ack backwards
-                // TODO: Not if we are SINGLE
+            Storage::commit(seq, sentListEntry.volumeOffset);
+            Tables::replayLog.commitLogEntry(sentListEntry.reqId);
+                
+            Tables::commitSeq++;
+        
+            while (server::state == server::TAIL) {
+                //Relay to previous nodes
                 grpc::ClientContext relay_context;
                 google::protobuf::Empty RelayWriteAckReply;
                 server::RelayWriteAckRequest request;
-                request.set_seqnum(pending_entry.seqNum);
+                request.set_seqnum(seq);
                 server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
-                clientRequestId->set_ip(pending_entry.reqId.ip());
-                clientRequestId->set_pid(pending_entry.reqId.pid());
+                clientRequestId->set_ip(sentListEntry.reqId.ip());
+                clientRequestId->set_pid(sentListEntry.reqId.pid());
                 google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
-                timestamp = pending_entry.reqId.timestamp();
+                timestamp = sentListEntry.reqId.timestamp();
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
 
-                // TODO: Want to break if status is ok, not if it is not ok
-                if (!status.ok()) break;
-
+                if (status.ok()) break;
             }
         }
+        catch (...) {}
     }
 }
 

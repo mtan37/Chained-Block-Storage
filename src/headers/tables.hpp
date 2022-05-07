@@ -15,7 +15,7 @@ namespace Tables {
 
     extern long writeSeq; // What is the sequence number of the last written item
     extern long commitSeq; // what was the sequence number of the last committed write
-    extern long currentSeq; // What is the next available sequence number to assign to a new write
+    extern std::atomic<long> currentSeq; // What is the next available sequence number to assign to a new write
 
     class PendingQueue {
         public:
@@ -35,6 +35,7 @@ namespace Tables {
             void pushEntry(pendingQueueEntry entry);
             // removes and returns entry from priority queue
             pendingQueueEntry popEntry();
+            pendingQueueEntry peekEntry();
             // returns size of priority queue
             int getQueueSize();
 
