@@ -209,6 +209,10 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     server::state = new_state;
 
     cout << "...New state = " << server::get_state(server::state) << endl;
+    if (server::upstream)
+    cout << "...New upstream IP = " << server::upstream->ip << endl;
+    if (server::downstream)
+    cout << "...New downstream IP = " << server::downstream->ip << endl;
     changemode_mtx.unlock();
     return grpc::Status::OK;
 }

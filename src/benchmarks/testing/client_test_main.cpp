@@ -8,4 +8,5 @@ int main(int argc, char *argv[]) {
     google::protobuf::Timestamp timestamp;
 
     c.write(data, timestamp, 0);
+
 }

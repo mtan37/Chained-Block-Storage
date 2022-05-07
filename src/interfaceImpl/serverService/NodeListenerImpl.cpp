@@ -14,7 +14,7 @@ using namespace std;
 grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
-        
+        cout << "RelayWrite called" << endl;
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
         // TODO: Would this ever happen?
@@ -26,7 +26,7 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         entry.data = request->data();
         
         Tables::pendingQueue.pushEntry(entry);
-        
+        cout << "RelayWrite finished" << endl;
         return grpc::Status::OK;
 }
 
@@ -50,6 +50,7 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
             grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, *request, &RelayWriteAckReply);
 
             if (status.ok()) break;
+            sleep(1);
         }
         
         return grpc::Status::OK;
