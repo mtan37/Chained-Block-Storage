@@ -61,3 +61,25 @@ grpc::Status server::NodeListenerImpl::ReplayLogChange (grpc::ServerContext *con
         // TODO 
         return grpc::Status::OK;
 }
+
+grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
+        const server::RestoreRequest *request,
+        google::protobuf::Empty *reply) {
+        
+        for (int i = 0; i < request->entry_size(); i++) {
+            server::RestoreEntry entry = request->entry(i);
+            Storage::write(entry.data(), entry.offset(), entry.seqnum());
+            Tables::writeSeq = entry.seqnum();
+            Storage::commit(entry.seqnum(), entry.offset());
+            Tables::commitSeq = entry.seqnum();
+            Tables::currentSeq = entry.seqnum() + 1;
+        }
+        return grpc::Status::OK;       
+}
+
+grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *context,
+        const server::UpdateReplayLogRequest *request,
+        google::protobuf::Empty *reply) {
+        Tables::replayLog.setReplayLogContent(request);
+        return grpc::Status::OK;
+}

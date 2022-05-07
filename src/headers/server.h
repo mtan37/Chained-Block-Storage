@@ -8,6 +8,7 @@ namespace server {
     class HeadServiceImpl;
     class TailServiceImpl;
     class NodeListenerImpl;
+    class RecoveryServiceImpl;
 
     // members
     struct Node {
@@ -81,5 +82,14 @@ public:
 
     grpc::Status ReplayLogChange (grpc::ServerContext *context,
             const server::ReplayLogChangeRequest *request,
-            google::protobuf::Empty *reply);             
+            google::protobuf::Empty *reply);
+        
+    grpc::Status Restore (grpc::ServerContext *context,
+            const server::RestoreRequest *request,
+            google::protobuf::Empty *reply);  
+            
+    grpc::Status UpdateReplayLog (grpc::ServerContext *context,
+            const server::UpdateReplayLogRequest *request,
+            google::protobuf::Empty *reply);
 };
+
