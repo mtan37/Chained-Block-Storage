@@ -333,24 +333,18 @@ void run_heartbeat(){
 
 int main(int argc, char const *argv[]) {
 
-    // Launch master listner to listen for node registration from chain servers
-    std::string my_address("0.0.0.0:" + Constants::MASTER_PORT);
-    master::NodeListenerImpl nodeListenerService;
-    grpc::ServerBuilder nodeListenerBuilder;
-    nodeListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    nodeListenerBuilder.RegisterService(&nodeListenerService);
+    std::string master_ip = std::string(argv[1]);
+    // Launch master listner to listen for node registration and client request
+    std::string my_address(master_ip + ":" + Constants::MASTER_PORT);
+    master::NodeListenerImpl *nodeListenerService = new master::NodeListenerImpl();
+    master::ClientListenerImpl *clientListenerImpl = new master::ClientListenerImpl();
+    grpc::ServerBuilder serviceBuilder;
+    serviceBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    serviceBuilder.RegisterService(nodeListenerService);
+    serviceBuilder.RegisterService(clientListenerImpl);
     // Thread server out and start listening
-    std::unique_ptr<grpc::Server> nodeListener(nodeListenerBuilder.BuildAndStart());
-    std::thread nodeListener_service_thread(run_service, nodeListener.get(), "listen to Nodes");
-
-    // Launch client listener, replies to client with chain details (head, tail)
-    master::ClientListenerImpl clientListenerImpl;
-    grpc::ServerBuilder clientListenerBuilder;
-    clientListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    clientListenerBuilder.RegisterService(&clientListenerImpl);
-    // Thread server out and start listening
-    std::unique_ptr<grpc::Server> clientListener(clientListenerBuilder.BuildAndStart());
-    std::thread clientListener_service_thread(run_service, clientListener.get(), "listen to clients");
+    std::unique_ptr<grpc::Server> serverListener(serviceBuilder.BuildAndStart());
+    std::thread listerner_service_thread(run_service, serverListener.get(), "listen to Nodes and clients");
 
     // Need to launch heartbeat communication with each registered node
     run_heartbeat();
@@ -359,7 +353,7 @@ int main(int argc, char const *argv[]) {
      * Start shutdown
      */
 
-    nodeListener_service_thread.join();
+    listerner_service_thread.join();
 
     // free memory
     master::nodeList_mtx.lock();
