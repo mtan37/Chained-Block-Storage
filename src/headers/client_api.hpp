@@ -21,7 +21,7 @@ class Client {
         void read (DataBlock &data, off_t offset);
 
         // return right away
-        void write (DataBlock &data, google::protobuf::Timestamp &timestamp, off_t offset);
+        void write (DataBlock data, google::protobuf::Timestamp &timestamp, off_t offset);
         
         /**
          * @brief See if the first pending write in 
@@ -38,10 +38,12 @@ class Client {
         int ackWrite(google::protobuf::Timestamp timestamp);
 
         // pop a pending write(not acked) off the pending list
-        void popPendingWrite();
+        // return the timestamp of the request that were poped
+        void popPendingWrite(google::protobuf::Timestamp &timestamp);
 
         // resend the top pending write to server
-        void retryTopPendingWrite();
+        // return the timestamp of the request that were retired
+        void retryTopPendingWrite(google::protobuf::Timestamp &timestamp);
     private:
         string master_ip;
         string master_port;
