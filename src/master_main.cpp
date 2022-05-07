@@ -5,7 +5,6 @@
 // the grpc interface imports
 #include <grpc++/grpc++.h>
 #include "server.grpc.pb.h"
-#include "master.grpc.pb.h"
 #include <google/protobuf/empty.pb.h>
 #include "constants.hpp"
 #include "master.h"
