@@ -63,6 +63,7 @@ namespace server {
     // Run grpc service in a loop
     void run_service(grpc::Server *server, std::string serviceName) {
         std::cout << "Starting to " << serviceName << "\n";
+        std::cout << "Checking head service " <<  headService.get() << endl;
         server->Wait();
         cout << "Will no longer " << serviceName << endl;
     }
@@ -73,10 +74,10 @@ namespace server {
      */
     void launch_tail(){
         std::string my_address(server::my_ip + ":" + to_string(my_port));
-        server::TailServiceImpl tailServiceImpl;
+        server::TailServiceImpl *tailServiceImpl = new server::TailServiceImpl();
         grpc::ServerBuilder tailBuilder;
         tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-        tailBuilder.RegisterService(&tailServiceImpl);
+        tailBuilder.RegisterService(tailServiceImpl);
         // Thread server out and start listening
         server::tailService = tailBuilder.BuildAndStart();
         std::thread (server::run_service, tailService.get(), "listen as tail").detach();
@@ -96,10 +97,10 @@ namespace server {
     void launch_head(){
         std::string my_address(server::my_ip + ":" + to_string(my_port));
         cout << "About to launch head at " << my_address << endl;
-        server::HeadServiceImpl headServiceImpl;
+        server::HeadServiceImpl *headServiceImpl = new server::HeadServiceImpl();
         grpc::ServerBuilder headBuilder;
         headBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-        headBuilder.RegisterService(&headServiceImpl);
+        headBuilder.RegisterService(headServiceImpl);
         // Thread server out and start listening
         server::headService = headBuilder.BuildAndStart();
         std::thread (server::run_service, server::headService.get(), "listen as head").detach();
@@ -189,9 +190,9 @@ void relay_write_background() {
         if ( Tables::pendingQueue.getQueueSize() ) {
         
             while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
-            
+            cout << "Pulling entry " << Tables::writeSeq + 1 << " off the pending list" << endl;
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            while (server::state != server::TAIL || server::state != server::SINGLE) { 
+            while (server::state != server::TAIL && server::state != server::SINGLE) { 
             
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
@@ -206,16 +207,24 @@ void relay_write_background() {
                 google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
                 timestamp = pending_entry.reqId.timestamp();
 
-                grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
+                string node_addr(server::downstream->ip + ":" + to_string(server::downstream->port));
+                grpc::ChannelArguments args;
+                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
+                auto stub = server::NodeListener::NewStub(channel);
 
+
+                grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
+                cout << "Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
                 if (status.ok()) break;
+                sleep(1);
                 
             } //End forwarding if non-tail
 
-            
+            cout << "Background thread checkpoint 1" << endl;
             //Need clarification on file vs volume offset
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
-
+            cout << "Background thread checkpoint 2" << endl;
             //Add to sent list
             // TODO: With current approach we don't want to add to sent list if tail, but with this layout
             // we could run into issues if tail state changes while work is in progress both with this
@@ -242,7 +251,7 @@ void relay_write_background() {
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            
+            cout << "Wrote entry" << endl;
         }
     }
 }
@@ -255,7 +264,7 @@ void relay_write_ack_background() {
             long seq = Tables::commitSeq + 1;
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
-
+            cout << "Pulling entry " << seq << " off the sent list" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
             Tables::replayLog.commitLogEntry(sentListEntry.reqId);
                 
@@ -276,6 +285,7 @@ void relay_write_ack_background() {
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
 
                 if (status.ok()) break;
+                sleep(1);
             }
         }
         catch (...) {}
@@ -302,7 +312,7 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-port") {
             my_port =  stoi(std::string(argv[++arg]));
         } else if (argx == "-ip") {
-            server::my_ip =  stoi(std::string(argv[++arg]));
+            server::my_ip =  std::string(argv[++arg]);
         } else if (argx == "-clean") {
             start_clean = true;
         } else if (argx == "-v") {
