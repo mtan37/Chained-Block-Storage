@@ -191,11 +191,11 @@ namespace Tables {
         }
     }
 
-    void initRelayLogContent(server::UpdateReplayLogRequest content) {
+    void ReplayLog::initRelayLogContent(server::UpdateReplayLogRequest content) {
         // TODO
     }
 
-    void getRelayLogContent(server::UpdateReplayLogRequest &content) {
+    void ReplayLog::getRelayLogContent(server::UpdateReplayLogRequest &content) {
         // TODO
     }
 }
