@@ -15,7 +15,11 @@ class Client {
         Client (string master_ip, string client_ip);
 
         struct DataBlock {
-            char FixedBuffer[4096];
+            char buff[4096];
+        };
+        struct PendingWriteEntry {
+            DataBlock data;
+            off_t offset;
         };
 
         void read (DataBlock &data, off_t offset);
@@ -39,7 +43,9 @@ class Client {
 
         // pop a pending write(not acked) off the pending list
         // return the timestamp of the request that were poped
-        void popPendingWrite(google::protobuf::Timestamp &timestamp);
+        void popPendingWrite(
+            google::protobuf::Timestamp &timestamp,
+            PendingWriteEntry &entry);
 
         // resend the top pending write to server
         // return the timestamp of the request that were retired
@@ -61,7 +67,7 @@ class Client {
         std::unique_ptr<server::TailService::Stub> tail_stub;
 
         std::map<google::protobuf::Timestamp,
-            DataBlock, Tables::googleTimestampComparator> pending_writes;
+            PendingWriteEntry, Tables::googleTimestampComparator> pending_writes;
         std::mutex pending_write_mutex;// mutex for the pending 
 
         void refreshConfig();
