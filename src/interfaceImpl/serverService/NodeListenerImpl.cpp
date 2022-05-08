@@ -17,7 +17,7 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         cout << "RelayWrite called" << endl;
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
-        // TODO: Would this ever happen?
+
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
         Tables::PendingQueue::pendingQueueEntry entry;

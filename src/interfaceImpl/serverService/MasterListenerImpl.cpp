@@ -94,6 +94,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         downstream->stub->UpdateReplayLog(&replayContext, replayRequest, &replayReply);
     }
 
+    // If new state != old state then head\tail failure or integration, else mid failure
     if (new_state != old_state) {
         bool clear_upstream = false, clear_downstream = false;
         switch (new_state) {
@@ -131,43 +132,34 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     } else {
         // state is the same, mid-failure, need to return sequence number
         if (request->has_prev_addr()){ // we are m+1 in mid failure
-            // TODO: Should we have lock around here so we don't start sending commits back
-            // to m-1 before we are able to deal with failure resolution?
-            // on the sent list.  This would correspond to the last seq # written.  If we are here
-            // then we are in mid failure, so writes should be up to date. Might not actually
-            // be an issue for commits.  Only going to remove items form m-1 sent list that we
-            // have already seen
             reply->set_lastreceivedseqnum(Tables::writeSeq);
-            cout << "I am m+1 in mid failure, returning my sequence number" << endl;
-            cout << "my upstream addy is " <<  server::upstream->ip << ":" << server::upstream->port;
+            cout << "...I am m+1 in mid failure, returning my sequence number" << endl;
+//            cout << "my upstream addy is " <<  server::upstream->ip << ":" << server::upstream->port;
         }
         // TODO: Below is where we send m+1 updated sent list
-        // Same as m-4 We do not want this node to be sending things downstream while we do this? if IP
-        // is updated above then this will be happening. This will add writes to our sent list
-        // which will then get resent below
-        // So we need to to lock downstream->relay_write in relay_write_background.  Since we
-        // are sending things downstream, I think it needs to be the lock
+        // Wondering if we need to lock here.  Once IP addy above is restored items that were in progress
+        // along with items that come in will start getting sent down.  There could be a small period
+        // were items that ARE getting sent are added to sent list, and we may end up sending them twice
+        // unless we add a lock.  I am not sure sending items twice would be a huge issue though
+        // second try should just get rejected.
         if (request->has_next_addr()){ // we are m-1 in mid failure
-            // TODO: Here is were we deal with updating m+1
-            cout << "I am m-1 in mid failure, need to update m+1" << endl;
-            cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port << endl;
+            cout << "...I am m-1 in mid failure, need to update m+1" << endl;
+//            cout << "my upstream addy is " <<  server::downstream->ip << ":" << server::downstream->port << endl;
             // Need to generate list of writes and send it to m+1 based on sequence and sent list
             long current_resend_seq = request->last_seq_num()+1;
-            std::list<Tables::SentList::sentListEntry> resend;
+            std::map<int, Tables::SentList::sentListEntry> resend;
             try{
-                // TODO Fix this
-//                resend = Tables::sentList.getSentListRange(current_resend_seq);
-                //resend = Tables::sentList.popSentListRange(current_resend_seq);
+                resend = Tables::sentList.getSentListRange(current_resend_seq);
             } catch (std::length_error){
                 cout << "...No items to update" << endl;
             }
-
             // need to get data from volume
             // Should be able to send using node->RelayWrite();
-            std::list<Tables::SentList::sentListEntry>::iterator it;
+            std::map<int, Tables::SentList::sentListEntry>::iterator it;
             for (it = resend.begin(); it != resend.end(); it++){
                 cout << "...iterating through resend list" << endl;
-                Tables::SentList::sentListEntry current = *it;
+                int current_resend_seq = it->first;
+                Tables::SentList::sentListEntry current = it->second;
                 string data = "";
                 if (Storage::read_sequence_number(data, current_resend_seq, current.volumeOffset)){
                     // Found in volume, should be good to go
@@ -201,7 +193,6 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
                     // Not sure what we would do here
                     cout << "Unexpected error occurred while dealing with downstream mid failure" << endl;
                 }
-                current_resend_seq++;
             }
         }
     }
