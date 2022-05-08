@@ -249,6 +249,7 @@ void relay_write_background() {
 
             Tables::SentList::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
+            sent_entry.reqId = pending_entry.reqId;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
             cout << "Wrote entry" << endl;
@@ -266,10 +267,12 @@ void relay_write_ack_background() {
             //Will throw exception here if seq is not sequentially next
             cout << "Pulling entry " << seq << " off the sent list" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
-            Tables::replayLog.commitLogEntry(sentListEntry.reqId);
+            int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
                 
             Tables::commitSeq++;
-        
+            cout << "Committed entry " << seq << " with reqId " << sentListEntry.reqId.ip() << ":" << sentListEntry.reqId.pid() << ":" << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
+            Tables::replayLog.printRelayLogContent();
+            
             while (server::state == server::TAIL) {
                 //Relay to previous nodes
                 grpc::ClientContext relay_context;

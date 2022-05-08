@@ -32,6 +32,7 @@ grpc::Status server::HeadServiceImpl::Write (
         entry.seqNum = seq;
         entry.volumeOffset = request->offset();
         entry.data = request->data();
+        entry.reqId = request->clientrequestid();
         
         cout << "Write checkpoint 3" << endl;
         
