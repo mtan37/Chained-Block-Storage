@@ -350,29 +350,27 @@ int main(int argc, char *argv[]) {
     // Start listening to master - TODO: Probably doesn't need to launch as thread
     std::string my_address(server::my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl masterListenerImpl;
-    grpc::ServerBuilder masterListenerBuilder;
-    masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    masterListenerBuilder.RegisterService(&masterListenerImpl);
-    std::unique_ptr<grpc::Server> masterListener(masterListenerBuilder.BuildAndStart());
+    grpc::ServerBuilder listenerBuilder;
+    listenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    listenerBuilder.RegisterService(&masterListenerImpl);
+    
+    server::NodeListenerImpl nodeListenerImpl;    
+    listenerBuilder.RegisterService(&nodeListenerImpl);
+    
+    std::unique_ptr<grpc::Server> listener(listenerBuilder.BuildAndStart());
     // Thread server out and start listening
 //    std::cout << "Starting to listen to Master\n";
 //    masterListener->Wait();
-    std::thread masterListener_service_thread(server::run_service, masterListener.get(), "listen to Master");
 
     // Start listening to other nodes
-    server::NodeListenerImpl nodeListenerImpl;
-    grpc::ServerBuilder nodeListenerBuilder;
-    nodeListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    nodeListenerBuilder.RegisterService(&nodeListenerImpl);
-    std::unique_ptr<grpc::Server> nodeListener(masterListenerBuilder.BuildAndStart());
-    std::thread nodeListener_service_thread(server::run_service, nodeListener.get(), "listen to other nodes");
+
+    std::thread listener_service_thread(server::run_service, listener.get(), "listen to master and other nodes");
 
     // Register node with master
     if (register_server() < 0) return -1;
 
     // Close server
-    masterListener_service_thread.join();
-    nodeListener_service_thread.join();
+    listener_service_thread.join();
     relay_write_thread.join();
     delete server::downstream;
     delete server::upstream;
