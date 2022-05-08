@@ -121,13 +121,32 @@ foreach(_target replay_log_test sent_list_test pending_queue_test storage_test c
     ./src/headers/server.h
     ${_VOLUME_CPP}
     ./src/crash.cpp
+    ./src/client_api.cpp
     )
 
   target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
-    server_grpc_proto
+    server_grpc_proto master_grpc_proto
+  )
+endforeach()
+
+# compilre test objects
+# add executables to test directory
+set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
+foreach(_target client_test)
+  add_executable(${_target} 
+    ./src/benchmarks/testing/${_target}_main.cpp
+    ./src/headers/master.h
+    ./src/client_api.cpp
+    )
+
+  target_compile_features(${_target} PRIVATE cxx_std_17)
+  target_compile_options(${_target} PRIVATE -fPIC)
+
+  target_link_libraries(${_target}
+    server_grpc_proto master_grpc_proto
   )
 endforeach()
 

@@ -5,7 +5,6 @@
 // the grpc interface imports
 #include <grpc++/grpc++.h>
 #include "server.grpc.pb.h"
-#include "master.grpc.pb.h"
 #include <google/protobuf/empty.pb.h>
 #include "constants.hpp"
 #include "master.h"
@@ -19,6 +18,7 @@ namespace master {
     master::Node *head;
     master::Node *tail;
     std::mutex nodeList_mtx;
+    std::mutex reg_mtx;
 
 
     string print_state(server::State state) {
@@ -334,33 +334,30 @@ void run_heartbeat(){
 
 int main(int argc, char const *argv[]) {
 
-    // Launch master listner to listen for node registration from chain servers
-    std::string my_address("0.0.0.0:" + Constants::MASTER_PORT);
-    master::NodeListenerImpl nodeListenerService;
-    grpc::ServerBuilder nodeListenerBuilder;
-    nodeListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    nodeListenerBuilder.RegisterService(&nodeListenerService);
+    std::string master_ip = std::string(argv[1]);
+    // Launch master listner to listen for node registration and client request
+    std::string my_address(master_ip + ":" + Constants::MASTER_PORT);
+    master::NodeListenerImpl *nodeListenerService = new master::NodeListenerImpl();
+    master::ClientListenerImpl *clientListenerImpl = new master::ClientListenerImpl();
+    grpc::ServerBuilder serviceBuilder;
+    serviceBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    serviceBuilder.RegisterService(nodeListenerService);
+    serviceBuilder.RegisterService(clientListenerImpl);
     // Thread server out and start listening
-    std::unique_ptr<grpc::Server> nodeListener(nodeListenerBuilder.BuildAndStart());
-    std::thread nodeListener_service_thread(run_service, nodeListener.get(), "listen to Nodes");
-
-    // Launch client listener, replies to client with chain details (head, tail)
-    master::ClientListenerImpl clientListenerImpl;
-    grpc::ServerBuilder clientListenerBuilder;
-    clientListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    clientListenerBuilder.RegisterService(&clientListenerImpl);
-    // Thread server out and start listening
-    std::unique_ptr<grpc::Server> clientListener(clientListenerBuilder.BuildAndStart());
-    std::thread clientListener_service_thread(run_service, clientListener.get(), "listen to clients");
+    cout << "About to generate serverListner" << endl;
+    std::unique_ptr<grpc::Server> serverListener(serviceBuilder.BuildAndStart());
+    cout << "About to run servers" << endl;
+    std::thread listerner_service_thread(run_service, serverListener.get(), "listen to Nodes and clients");
 
     // Need to launch heartbeat communication with each registered node
+    cout << "About to run heartbeat" << endl;
     run_heartbeat();
 
     /**
      * Start shutdown
      */
 
-    nodeListener_service_thread.join();
+    listerner_service_thread.join();
 
     // free memory
     master::nodeList_mtx.lock();

@@ -23,9 +23,9 @@ int my_port = Constants::SERVER_PORT;
 bool start_clean = false;
 
 namespace Tables {
-    long currentSeq; // TODO - change to automic for RMW modification
-    long writeSeq; // Probably does not need to be setup for concurrency
-    long commitSeq; //
+    std::atomic<long> currentSeq(0);
+    long writeSeq;
+    long commitSeq;
 };
 
 namespace server {
@@ -63,6 +63,7 @@ namespace server {
     // Run grpc service in a loop
     void run_service(grpc::Server *server, std::string serviceName) {
         std::cout << "Starting to " << serviceName << "\n";
+        std::cout << "Checking head service " <<  headService.get() << endl;
         server->Wait();
         cout << "Will no longer " << serviceName << endl;
     }
@@ -73,13 +74,15 @@ namespace server {
      */
     void launch_tail(){
         std::string my_address(server::my_ip + ":" + to_string(my_port));
-        server::TailServiceImpl tailServiceImpl;
+        server::TailServiceImpl *tailServiceImpl = new server::TailServiceImpl();
         grpc::ServerBuilder tailBuilder;
         tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-        tailBuilder.RegisterService(&tailServiceImpl);
+        tailBuilder.RegisterService(tailServiceImpl);
         // Thread server out and start listening
         server::tailService = tailBuilder.BuildAndStart();
         std::thread (server::run_service, tailService.get(), "listen as tail").detach();
+        std::thread relay_write_ack_thread(relay_write_ack_background);
+        relay_write_ack_thread.detach();
     }
 
     // We need to kill tail when promoted to mid\head.  But keep in mind that
@@ -94,10 +97,10 @@ namespace server {
     void launch_head(){
         std::string my_address(server::my_ip + ":" + to_string(my_port));
         cout << "About to launch head at " << my_address << endl;
-        server::HeadServiceImpl headServiceImpl;
+        server::HeadServiceImpl *headServiceImpl = new server::HeadServiceImpl();
         grpc::ServerBuilder headBuilder;
         headBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-        headBuilder.RegisterService(&headServiceImpl);
+        headBuilder.RegisterService(headServiceImpl);
         // Thread server out and start listening
         server::headService = headBuilder.BuildAndStart();
         std::thread (server::run_service, server::headService.get(), "listen as head").detach();
@@ -185,9 +188,11 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-            // TODO: Can't just pop anything, need to pop sequentially (i.e 1,2,3 never 1,3,2)
+        
+            while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
+            cout << "Pulling entry " << Tables::writeSeq + 1 << " off the pending list" << endl;
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            while (server::state != server::TAIL) { // TODO or SINGLE
+            while (server::state != server::TAIL && server::state != server::SINGLE) { 
             
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
@@ -202,20 +207,25 @@ void relay_write_background() {
                 google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
                 timestamp = pending_entry.reqId.timestamp();
 
-                grpc::Status status = server::downstream->stub->RelayWrite(&context, request, &RelayWriteReply);
+                string node_addr(server::downstream->ip + ":" + to_string(server::downstream->port));
+                grpc::ChannelArguments args;
+                args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
+                std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(node_addr, grpc::InsecureChannelCredentials(), args);
+                auto stub = server::NodeListener::NewStub(channel);
 
-                // TODO: Want to break if status is ok, not if it is not ok
-                if (!status.ok()) break;
+
+                grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
+                cout << "Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
+                if (status.ok()) break;
+                sleep(1);
                 
             } //End forwarding if non-tail
 
-
-            // Issue: If we lock here on registration, once registration is complete our state changes, but
-            // we never sent write downstream
+            cout << "Background thread checkpoint 1" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
-
+            cout << "Background thread checkpoint 2" << endl;
             //Add to sent list
             // TODO: With current approach we don't want to add to sent list if tail, but with this layout
             // we could run into issues if tail state changes while work is in progress both with this
@@ -242,34 +252,44 @@ void relay_write_background() {
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            // TODO: Below in own process
+            cout << "Wrote entry" << endl;
+        }
+    }
+}
 
-            while (server::state == server::TAIL) { // TODO: or SINGLE
-                //Commit
-                Storage::commit(pending_entry.seqNum, pending_entry.volumeOffset);
-
-                Tables::replayLog.commitLogEntry(pending_entry.reqId);
-                Tables::commitSeq = (int) pending_entry.seqNum;
-
-                //send an ack backwards
-                // TODO: Not if we are SINGLE
+void relay_write_ack_background() {
+    while (server::state == server::TAIL || server::state == server::SINGLE) { 
+        Tables::SentList::sentListEntry sentListEntry;
+        //Remove from sent list
+        try {
+            long seq = Tables::commitSeq + 1;
+            sentListEntry = Tables::sentList.popEntry((int) seq);
+            //Will throw exception here if seq is not sequentially next
+            cout << "Pulling entry " << seq << " off the sent list" << endl;
+            Storage::commit(seq, sentListEntry.volumeOffset);
+            Tables::replayLog.commitLogEntry(sentListEntry.reqId);
+                
+            Tables::commitSeq++;
+        
+            while (server::state == server::TAIL) {
+                //Relay to previous nodes
                 grpc::ClientContext relay_context;
                 google::protobuf::Empty RelayWriteAckReply;
                 server::RelayWriteAckRequest request;
-                request.set_seqnum(pending_entry.seqNum);
+                request.set_seqnum(seq);
                 server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
-                clientRequestId->set_ip(pending_entry.reqId.ip());
-                clientRequestId->set_pid(pending_entry.reqId.pid());
+                clientRequestId->set_ip(sentListEntry.reqId.ip());
+                clientRequestId->set_pid(sentListEntry.reqId.pid());
                 google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
-                timestamp = pending_entry.reqId.timestamp();
+                timestamp = sentListEntry.reqId.timestamp();
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
 
-                // TODO: Want to break if status is ok, not if it is not ok
-                if (!status.ok()) break;
-
+                if (status.ok()) break;
+                sleep(1);
             }
         }
+        catch (...) {}
     }
 }
 
@@ -293,7 +313,7 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-port") {
             my_port =  stoi(std::string(argv[++arg]));
         } else if (argx == "-ip") {
-            server::my_ip =  stoi(std::string(argv[++arg]));
+            server::my_ip =  std::string(argv[++arg]);
         } else if (argx == "-clean") {
             start_clean = true;
         } else if (argx == "-v") {
@@ -328,29 +348,27 @@ int main(int argc, char *argv[]) {
     // Start listening to master - TODO: Probably doesn't need to launch as thread
     std::string my_address(server::my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl masterListenerImpl;
-    grpc::ServerBuilder masterListenerBuilder;
-    masterListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    masterListenerBuilder.RegisterService(&masterListenerImpl);
-    std::unique_ptr<grpc::Server> masterListener(masterListenerBuilder.BuildAndStart());
+    grpc::ServerBuilder listenerBuilder;
+    listenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
+    listenerBuilder.RegisterService(&masterListenerImpl);
+
+    server::NodeListenerImpl nodeListenerImpl;
+    listenerBuilder.RegisterService(&nodeListenerImpl);
+
+    std::unique_ptr<grpc::Server> listener(listenerBuilder.BuildAndStart());
     // Thread server out and start listening
 //    std::cout << "Starting to listen to Master\n";
 //    masterListener->Wait();
-    std::thread masterListener_service_thread(server::run_service, masterListener.get(), "listen to Master");
 
     // Start listening to other nodes
-    server::NodeListenerImpl nodeListenerImpl;
-    grpc::ServerBuilder nodeListenerBuilder;
-    nodeListenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
-    nodeListenerBuilder.RegisterService(&nodeListenerImpl);
-    std::unique_ptr<grpc::Server> nodeListener(masterListenerBuilder.BuildAndStart());
-    std::thread nodeListener_service_thread(server::run_service, nodeListener.get(), "listen to other nodes");
+
+    std::thread listener_service_thread(server::run_service, listener.get(), "listen to master and other nodes");
 
     // Register node with master
     if (register_server() < 0) return -1;
 
     // Close server
-    masterListener_service_thread.join();
-    nodeListener_service_thread.join();
+    listener_service_thread.join();
     relay_write_thread.join();
     delete server::downstream;
     delete server::upstream;

@@ -13,6 +13,7 @@ grpc::Status server::TailServiceImpl::WriteAck (
     server::WriteAckReply *reply) {
     
         int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
+        cout<< "ackLogEntry result is " << result << endl;
         if (result == 0)
             reply->set_committed(true);
         else

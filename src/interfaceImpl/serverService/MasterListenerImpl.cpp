@@ -155,8 +155,9 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             long current_resend_seq = request->last_seq_num()+1;
             std::list<Tables::SentList::sentListEntry> resend;
             try{
-                // TODO: Update this line with new name
-                resend = Tables::sentList.popSentListRange(current_resend_seq);
+                // TODO Fix this
+//                resend = Tables::sentList.getSentListRange(current_resend_seq);
+                //resend = Tables::sentList.popSentListRange(current_resend_seq);
             } catch (std::length_error){
                 cout << "...No items to update" << endl;
             }
@@ -210,6 +211,10 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     server::state = new_state;
 
     cout << "...New state = " << server::get_state(server::state) << endl;
+    if (server::upstream)
+    cout << "...New upstream IP = " << server::upstream->ip << endl;
+    if (server::downstream)
+    cout << "...New downstream IP = " << server::downstream->ip << endl;
     changemode_mtx.unlock();
     return grpc::Status::OK;
 }
