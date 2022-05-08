@@ -186,3 +186,18 @@ void Client::retryTopPendingWrite(google::protobuf::Timestamp &timestamp) {
         }
     }
 }
+
+server::ChecksumReply Client::checksum () {
+    // conntact the tail server for read
+    while (true) {
+        grpc::ClientContext context;
+        google::protobuf::Empty request;
+        server::ChecksumReply reply;
+        grpc::Status status = this->head_stub->ChecksumSystem(&context, request, &reply);
+
+        if (status.ok()) {
+            return reply;
+        }
+        else refreshConfig();// trouble connect to head. Refresh config from master
+    }
+}

@@ -1,5 +1,6 @@
 #include "client_api.hpp"
 #include "constants.hpp"
+#include "server.h"
 
 #include <chrono>
 #include <thread>
@@ -7,6 +8,11 @@
 
 int main(int argc, char *argv[]) {
     Client c = Client("localhost", "localhost");
+    server::ChecksumReply cs_reply;
+//    cs_reply = c.checksum();
+//    cout << "Checksum 1: " << cs_reply.chk_sum() << endl;
+//    if (cs_reply.valid()) cout << "...Servers consistent" << endl;
+//    else cout << "..Servers inconsistent" << endl;
 
     Client::DataBlock data;
     std::string write_content = "yesyes";
@@ -26,4 +32,9 @@ int main(int argc, char *argv[]) {
 
     c.read(data, Constants::BLOCK_SIZE);
     cout << "The read data is: " << data.buff << endl;
+
+//    cs_reply = c.checksum();
+//    cout << "Checksum 2: " << cs_reply.chk_sum() << endl;
+//    if (cs_reply.valid()) cout << "...Servers consistent" << endl;
+//    else cout << "...Servers inconsistent" << endl;
 }

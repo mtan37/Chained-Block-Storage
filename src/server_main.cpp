@@ -58,6 +58,7 @@ namespace server {
                 return "Transitioning";
                 break;
         }
+        return "";
     };
 
     // Run grpc service in a loop

@@ -1,7 +1,7 @@
 #include <iostream>
 #include "server.h"
 #include "tables.hpp"
-
+#include "storage.hpp"
 using namespace std;
 
 
@@ -45,4 +45,50 @@ grpc::Status server::HeadServiceImpl::Write (
         cout << "Finished Write" << endl;
         
         return grpc::Status::OK;
+}
+
+
+/**+
+ * Request to checksum chain
+ *
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
+grpc::Status server::HeadServiceImpl::ChecksumSystem (grpc::ServerContext *context,
+                            const google::protobuf::Empty *request,
+                            server::ChecksumReply *reply) {
+    // Should just be able to call volume checksum and then send downstream
+    // on return should verify results and return valid + (my CS == downstream CS)
+
+    //first item, sent reply to true, will adjust as it comes back up chain
+//    reply->set_valid(true);
+
+    cout << "Running Checksum" << endl;
+    server::ChecksumReply cs_request;
+    cs_request.set_valid(true);
+    if (cs_request.valid()) cout << "...initially valid" << endl;
+    else cout << "...initially invalid" << endl;
+
+    // Chain
+    grpc::ClientContext cs_context;
+    string my_cs, ds_cs;
+
+    my_cs = Storage::checksum();
+    if (server::state != server::TAIL && server::state != server::SINGLE){
+        grpc::Status status = server::downstream->stub->ChecksumChain(&cs_context, cs_request, reply);
+        if (!status.ok()){
+            cout << "Something went terribly wrong with checksum" << endl;
+        }
+        ds_cs = reply->chk_sum();
+    } else ds_cs = my_cs;
+
+    reply->set_valid(cs_request.valid() && (ds_cs == my_cs));
+    reply->set_chk_sum(my_cs);
+    cout << "...Checksum = " << my_cs << endl;
+    if (reply->valid()) cout << "...chain matches" << endl;
+    else cout << "...chain inconsistent" << endl;
+
+    return grpc::Status::OK;
 }

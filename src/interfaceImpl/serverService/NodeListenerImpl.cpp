@@ -84,3 +84,40 @@ grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *con
         Tables::replayLog.initRelayLogContent(*request);
         return grpc::Status::OK;
 }
+
+/**
+ * Checksum volume, if not tail send downstream
+ * if sent downstream then need to check that our checksum matches and return
+ * valid + (my CS == downstream CS)
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
+grpc::Status server::NodeListenerImpl::ChecksumChain (grpc::ServerContext *context,
+                            const server::ChecksumReply *request,
+                            server::ChecksumReply *reply){
+    // Chain
+    cout << "Running Checksum" << endl;
+    grpc::ClientContext cs_context;
+    if (request->valid()) cout << "...initially valid" << endl;
+    else cout << "...initially invalid" << endl;
+
+    string my_cs, ds_cs;
+
+    my_cs = Storage::checksum();
+    if (server::state != server::TAIL && server::state != server::SINGLE){
+        grpc::Status status = server::downstream->stub->ChecksumChain(&cs_context, *request, reply);
+        if (!status.ok()){
+            cout << "Something went terribly wrong with checksum" << endl;
+        }
+        ds_cs = reply->chk_sum();
+    } else ds_cs = my_cs;
+
+    reply->set_valid(request->valid() && (ds_cs == my_cs));
+    reply->set_chk_sum(my_cs);
+    cout << "Checksum = " << my_cs << endl;
+    if (reply->valid()) cout << "...chain matches" << endl;
+    else cout << "...chain inconsistent" << endl;
+    return grpc::Status::OK;
+}

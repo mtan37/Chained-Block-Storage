@@ -45,9 +45,15 @@ message WriteReply{
     uint64 seqNum = 1;
 }
 
+message ChecksumReply{
+    string chk_sum = 1;
+    bool valid = 2;
+}
+
 // Service hosted on head, listening for client write request
 service HeadService {
     rpc Write(WriteRequest) returns (WriteReply){}
+    rpc ChecksumSystem(google.protobuf.Empty) returns (ChecksumReply) {}
 }
 
 message WriteAckRequest {
@@ -109,6 +115,8 @@ message UpdateReplayLogRequest {
     repeated ReplayLogEntry entires = 1;
 }
 
+
+
 service NodeListener {
     // relay write to the next node in the chain, return right away
     rpc RelayWrite(RelayWriteRequest) returns (google.protobuf.Empty) {}
@@ -121,4 +129,6 @@ service NodeListener {
     rpc Restore(RestoreRequest) returns (google.protobuf.Empty) {}
     
     rpc UpdateReplayLog(UpdateReplayLogRequest) returns (google.protobuf.Empty) {}
+
+    rpc ChecksumChain(ChecksumReply) returns (ChecksumReply) {}
 }

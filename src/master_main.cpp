@@ -42,6 +42,7 @@ namespace master {
                 return "Transitioning";
                 break;
         }
+        return "";
     }
 
     void print_nodes(){
