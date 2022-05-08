@@ -188,7 +188,7 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-        
+            cout << "WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is " << Tables::pendingQueue.peekEntry().seqNum << endl;
             while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
             cout << "Pulling entry " << Tables::writeSeq + 1 << " off the pending list" << endl;
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
@@ -225,6 +225,8 @@ void relay_write_background() {
             //Need clarification on file vs volume offset
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
             cout << "Background thread checkpoint 2" << endl;
+            Tables::writeSeq++;
+            
             //Add to sent list
             // TODO: With current approach we don't want to add to sent list if tail, but with this layout
             // we could run into issues if tail state changes while work is in progress both with this
