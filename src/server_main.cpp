@@ -23,9 +23,9 @@ int my_port = Constants::SERVER_PORT;
 bool start_clean = false;
 
 namespace Tables {
-    long currentSeq;
-    long writeSeq;
-    long commitSeq;
+    long currentSeq; // TODO - change to automic for RMW modification
+    long writeSeq; // Probably does not need to be setup for concurrency
+    long commitSeq; //
 };
 
 namespace server {
@@ -209,8 +209,11 @@ void relay_write_background() {
                 
             } //End forwarding if non-tail
 
-            
+
+            // Issue: If we lock here on registration, once registration is complete our state changes, but
+            // we never sent write downstream
             //Need clarification on file vs volume offset
+            // TODO: Hypothetical lock
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
 
             //Add to sent list
@@ -238,6 +241,8 @@ void relay_write_background() {
             Tables::SentList::sentListEntry sent_entry;
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
+
+            // TODO: Below in own process
 
             while (server::state == server::TAIL) { // TODO: or SINGLE
                 //Commit

@@ -18,6 +18,7 @@ grpc::Status master::NodeListenerImpl::Register (
     const master::RegisterRequest *request,
     master::RegisterReply *reply) {
 
+    // TODO: Create register lock so only one node can register at a time
     /**
      * Build and test new node
      */
@@ -32,6 +33,7 @@ grpc::Status master::NodeListenerImpl::Register (
     google::protobuf::Empty hb_request;
     google::protobuf::Empty hb_reply;
     int backoff = 1;
+    // TODO: Assumption - new node and old tail do not crash while integrating
     // If you don't run heartbeat here, it seems to struggle intermittently after adding head and tail services
     while (true) {
         grpc::ClientContext hb_context;
@@ -54,6 +56,7 @@ grpc::Status master::NodeListenerImpl::Register (
         backoff += 2;
     }
 
+
     // need to ID new state for old tail before changeMode
     server::State old_tail_state;
     if (tail == head) old_tail_state = server::HEAD;
@@ -74,6 +77,7 @@ grpc::Status master::NodeListenerImpl::Register (
         // context and reply
         server::ChangeModeReply cm_reply;
         grpc::ClientContext cm_context;
+
 
         // Update node it is no longer tail, it identifies what its
         // Current plan is to block here until new node is brought online
@@ -111,6 +115,7 @@ grpc::Status master::NodeListenerImpl::Register (
      * Lock node list, add new node, and update node states
      */
     // Push to nodeList - may want to extend lock, or wait until end to push to node list
+
     master::nodeList_mtx.lock();
         master::nodeList.push_back(newNode);
         if (master::nodeList.size() == 1){
@@ -128,5 +133,7 @@ grpc::Status master::NodeListenerImpl::Register (
 
     cout << "...Node registered" << endl;
     master::print_nodes();
+
+    // TODO:
     return grpc::Status::OK;
 }

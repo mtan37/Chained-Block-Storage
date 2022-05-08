@@ -135,7 +135,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             // to m-1 before we are able to deal with failure resolution?
             // on the sent list.  This would correspond to the last seq # written.  If we are here
             // then we are in mid failure, so writes should be up to date. Might not actually
-            // be an issue for commits.  Only going to remove items form m-1 sent list taht we
+            // be an issue for commits.  Only going to remove items form m-1 sent list that we
             // have already seen
             reply->set_lastreceivedseqnum(Tables::writeSeq);
             cout << "I am m+1 in mid failure, returning my sequence number" << endl;
@@ -155,6 +155,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             long current_resend_seq = request->last_seq_num()+1;
             std::list<Tables::SentList::sentListEntry> resend;
             try{
+                // TODO: Update this line with new name
                 resend = Tables::sentList.popSentListRange(current_resend_seq);
             } catch (std::length_error){
                 cout << "...No items to update" << endl;
