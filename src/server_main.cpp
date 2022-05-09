@@ -226,6 +226,7 @@ void relay_write_background() {
 
             cout << "Background thread checkpoint 1" << endl;
             //Need clarification on file vs volume offset
+            // TODO: Hypothetical lock
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
             cout << "Background thread checkpoint 2" << endl;
             Tables::writeSeq++;

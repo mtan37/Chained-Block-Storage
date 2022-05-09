@@ -18,6 +18,7 @@ namespace master {
     master::Node *head;
     master::Node *tail;
     std::mutex nodeList_mtx;
+    std::mutex reg_mtx;
 
 
     string print_state(server::State state) {
@@ -343,10 +344,13 @@ int main(int argc, char const *argv[]) {
     serviceBuilder.RegisterService(nodeListenerService);
     serviceBuilder.RegisterService(clientListenerImpl);
     // Thread server out and start listening
+    cout << "About to generate serverListner" << endl;
     std::unique_ptr<grpc::Server> serverListener(serviceBuilder.BuildAndStart());
+    cout << "About to run servers" << endl;
     std::thread listerner_service_thread(run_service, serverListener.get(), "listen to Nodes and clients");
 
     // Need to launch heartbeat communication with each registered node
+    cout << "About to run heartbeat" << endl;
     run_heartbeat();
 
     /**

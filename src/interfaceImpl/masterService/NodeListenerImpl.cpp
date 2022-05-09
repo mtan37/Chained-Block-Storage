@@ -18,6 +18,8 @@ grpc::Status master::NodeListenerImpl::Register (
     const master::RegisterRequest *request,
     master::RegisterReply *reply) {
 
+    // Only one registration at a time
+    master::reg_mtx.lock();
     /**
      * Build and test new node
      */
@@ -54,11 +56,16 @@ grpc::Status master::NodeListenerImpl::Register (
         backoff += 2;
     }
 
+
     // need to ID new state for old tail before changeMode
     server::State old_tail_state;
     if (tail == head) old_tail_state = server::HEAD;
     else old_tail_state = server::MIDDLE;
-
+    // TODO: Assumption - new node and old tail do not crash while integrating
+    // If time, could fix by notification from stub->changeMode of new node failure here
+    // But would also need to set new node to restart some how.  Additionally would need
+    // to deal with tail crash, which would involve additional communication with new node
+    // like a registration failed response? Maybe just time out and try again
     /**
      * If new node is not first node then we need to bring volume up to speed
      */
@@ -74,6 +81,7 @@ grpc::Status master::NodeListenerImpl::Register (
         // context and reply
         server::ChangeModeReply cm_reply;
         grpc::ClientContext cm_context;
+
 
         // Update node it is no longer tail, it identifies what its
         // Current plan is to block here until new node is brought online
@@ -111,6 +119,7 @@ grpc::Status master::NodeListenerImpl::Register (
      * Lock node list, add new node, and update node states
      */
     // Push to nodeList - may want to extend lock, or wait until end to push to node list
+
     master::nodeList_mtx.lock();
         master::nodeList.push_back(newNode);
         if (master::nodeList.size() == 1){
@@ -128,5 +137,7 @@ grpc::Status master::NodeListenerImpl::Register (
 
     cout << "...Node registered" << endl;
     master::print_nodes();
+
+    master::reg_mtx.unlock();
     return grpc::Status::OK;
 }
