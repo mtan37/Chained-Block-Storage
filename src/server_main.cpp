@@ -82,8 +82,7 @@ namespace server {
         // Thread server out and start listening
         server::tailService = tailBuilder.BuildAndStart();
         std::thread (server::run_service, tailService.get(), "listen as tail").detach();
-        std::thread relay_write_ack_thread(relay_write_ack_background);
-        relay_write_ack_thread.detach();
+        std::thread (relay_write_ack_background).detach();
     }
 
     // We need to kill tail when promoted to mid\head.  But keep in mind that
@@ -189,12 +188,16 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-            cout << "WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is " << Tables::pendingQueue.peekEntry().seqNum << endl;
+            cout << "WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is "
+                << Tables::pendingQueue.peekEntry().seqNum << endl;
             while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
-            cout << "Pulling entry " << Tables::writeSeq + 1 << " off the pending list" << endl;
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
+            cout << "...Pulling entry " << pending_entry.seqNum << " off the pending list ("
+                    << pending_entry.reqId.ip() << ":"
+                    << pending_entry.reqId.pid() << ":"
+                    << pending_entry.reqId.timestamp().seconds() << ")" << endl;
             while (server::state != server::TAIL && server::state != server::SINGLE) { 
-            
+                cout << "...Relaying write downstream" << endl;
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
 
@@ -217,19 +220,20 @@ void relay_write_background() {
 
 
                 grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
-                cout << "Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
-                cout << "ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
-                cout << "Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
+                cout << "......Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
+                cout << "......ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
+                cout << "......Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
                 if (status.ok()) break;
                 sleep(1);
                 
             } //End forwarding if non-tail
 
-            cout << "Background thread checkpoint 1" << endl;
+            cout << "...Background write thread checkpoint 1 (writing to volume)" << endl;
+            cout << "WRITING :" << pending_entry.data << ":" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
-            cout << "Background thread checkpoint 2" << endl;
+            cout << "...Background write thread checkpoint 2 (written to volume)" << endl;
             Tables::writeSeq++;
             
             //Add to sent list
@@ -259,12 +263,17 @@ void relay_write_background() {
             sent_entry.reqId = pending_entry.reqId;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            cout << "Wrote entry" << endl;
+            cout << "Wrote entry, added to sentList" << endl;
         }
     }
 }
 
+/**
+ * Pulls items of sent list sequentially and commits them.  Relays commit
+ * upstream if tail
+ */
 void relay_write_ack_background() {
+    cout << "STARTING RELAY WRITE ACK BACKGROUND" << endl;
     while (server::state == server::TAIL || server::state == server::SINGLE) { 
         Tables::SentList::sentListEntry sentListEntry;
         //Remove from sent list
@@ -273,11 +282,17 @@ void relay_write_ack_background() {
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
             cout << "Pulling entry " << seq << " off the sent list" << endl;
+            cout << "...committing to storage" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
+            cout << "...committing log entry on replay log" << endl;
             int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
                 
             Tables::commitSeq++;
-            cout << "Committed entry " << seq << " with reqId " << sentListEntry.reqId.ip() << ":" << sentListEntry.reqId.pid() << ":" << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
+            cout << "...Committed entry " << seq << " with reqId "
+                << sentListEntry.reqId.ip() << ":"
+                << sentListEntry.reqId.pid() << ":"
+                << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
+            cout << "...Printing replay log" << endl;
             Tables::replayLog.printRelayLogContent();
             
             while (server::state == server::TAIL) {    
@@ -294,13 +309,16 @@ void relay_write_ack_background() {
                 timestamp->set_nanos(sentListEntry.reqId.timestamp().nanos());
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
-                cout << "Forward attempt to " << server::upstream->ip << ":" << server::upstream->port << ": " << status.error_code() << endl;
+                cout << "...Forward attempt to " << server::upstream->ip << ":"
+                    << server::upstream->port << " returned: " << status.error_code() << endl;
                 if (status.ok()) break;
-                sleep(1);
+                server::build_node_stub(server::upstream);
+//                sleep(1);
             }
         }
         catch (...) {}
     }
+    cout << "ENDING RELAY WRITE ACK BACKGROUND" << endl;
 }
 
 void print_usage(){
@@ -358,20 +376,12 @@ int main(int argc, char *argv[]) {
     // Start listening to master - TODO: Probably doesn't need to launch as thread
     std::string my_address(server::my_ip + ":" + to_string(my_port));
     server::MasterListenerImpl masterListenerImpl;
+    server::NodeListenerImpl nodeListenerImpl;
     grpc::ServerBuilder listenerBuilder;
     listenerBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
     listenerBuilder.RegisterService(&masterListenerImpl);
-    
-    server::NodeListenerImpl nodeListenerImpl;    
     listenerBuilder.RegisterService(&nodeListenerImpl);
-    
     std::unique_ptr<grpc::Server> listener(listenerBuilder.BuildAndStart());
-    // Thread server out and start listening
-//    std::cout << "Starting to listen to Master\n";
-//    masterListener->Wait();
-
-    // Start listening to other nodes
-
     std::thread listener_service_thread(server::run_service, listener.get(), "listen to master and other nodes");
 
     // Register node with master

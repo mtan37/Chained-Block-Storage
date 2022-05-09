@@ -17,32 +17,35 @@ grpc::Status server::HeadServiceImpl::Write (
     const server::WriteRequest *request,
     server::WriteReply *reply) {
         
-        cout << "Called Write" << endl;
+        cout << "Client called Write - next seq # is " << Tables::currentSeq << endl;
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
-        cout << "Write checkpoint 1" << endl;
+//        cout << "Write checkpoint 1" << endl;
         
         Tables::PendingQueue::pendingQueueEntry entry;
         long seq = Tables::currentSeq++;
         
-        cout << "Write checkpoint 2" << endl;
+//        cout << "Write checkpoint 2" << endl;
         
         entry.seqNum = seq;
         entry.volumeOffset = request->offset();
         entry.data = request->data();
         entry.reqId = request->clientrequestid();
         
-        cout << "Write checkpoint 3" << endl;
+//        cout << "Write checkpoint 3" << endl;
         
         Tables::pendingQueue.pushEntry(entry);
         
-        cout << "Write checkpoint 4" << endl;
+//        cout << "Write checkpoint 4" << endl;
         
         reply->set_seqnum(seq);
         
-        cout << "Finished Write" << endl;
+        cout << "...Finished Writing ("
+                << entry.reqId.ip() << ":"
+                << entry.reqId.pid() << ":"
+                << entry.reqId.timestamp().seconds() << ") to pending queue" <<  endl;
         
         return grpc::Status::OK;
 }
@@ -84,9 +87,9 @@ grpc::Status server::HeadServiceImpl::ChecksumSystem (grpc::ServerContext *conte
         ds_cs = reply->chk_sum();
     } else ds_cs = my_cs;
 
+    cout << "...Checksum = " << my_cs << endl;
     reply->set_valid(cs_request.valid() && (ds_cs == my_cs));
     reply->set_chk_sum(my_cs);
-    cout << "...Checksum = " << my_cs << endl;
     if (reply->valid()) cout << "...chain matches" << endl;
     else cout << "...chain inconsistent" << endl;
 

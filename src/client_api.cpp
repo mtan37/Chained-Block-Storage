@@ -10,6 +10,9 @@ void Client::refreshConfig() {
     google::protobuf::Empty request;
     master::GetConfigReply reply;
     grpc::Status status = this->master_stub->GetConfig(&context, request, &reply);
+    cout << "Refreshing config" << endl;
+    cout << "...head = " << reply.head().ip() << ":" << reply.head().port() << endl;
+    cout << "...tail = " << reply.tail().ip() << ":" << reply.tail().port() << endl;
     if (!status.ok()) throw std::runtime_error("Client: Can't contact the master");
 
     master::ServerIp head = reply.head();
@@ -66,6 +69,7 @@ void Client::read (DataBlock &data, off_t offset) {
             return;
         }
         else refreshConfig();// trouble connect to head. Refresh config from master
+        sleep(1);
     }
 }
 
@@ -99,8 +103,10 @@ void Client::write (
         request.set_offset(offset);
 
         grpc::Status status = this->head_stub->Write(&context, request, &reply);
-        cout << status.error_code() << endl;
-        if (!status.ok()) refreshConfig();
+        if (!status.ok()) {
+            cout << "Error: " << status.error_code() << endl;
+            refreshConfig();
+        }
         else {
             // add to pending write
             PendingWriteEntry pending_entry; 
@@ -112,6 +118,7 @@ void Client::write (
             timestamp.set_nanos(tv.tv_usec * 1000);
             break;
         }
+        sleep(1);
     }
     pending_write_mutex.unlock();
 }
@@ -134,8 +141,11 @@ int Client::ackWrite(google::protobuf::Timestamp timestamp) {
         if (status.ok()) {
             if (!reply.committed()) return -1;
             else return 0;
+        } else {
+            cout << "Error: " << status.error_code() << endl;
+            refreshConfig();// trouble connect to head. Refresh config from master
         }
-        else refreshConfig();// trouble connect to head. Refresh config from master
+        sleep(1);
     }
 }
 
@@ -184,6 +194,7 @@ void Client::retryTopPendingWrite(google::protobuf::Timestamp &timestamp) {
             timestamp.set_nanos(it->first.nanos());
             break;
         }
+        sleep(1);
     }
 }
 
@@ -198,6 +209,10 @@ server::ChecksumReply Client::checksum () {
         if (status.ok()) {
             return reply;
         }
-        else refreshConfig();// trouble connect to head. Refresh config from master
+        else {
+            cout << "Error: " << status.error_code() << endl;
+            refreshConfig();// trouble connect to head. Refresh config from master
+        }
+        sleep(1);
     }
 }
