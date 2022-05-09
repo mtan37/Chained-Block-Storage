@@ -145,7 +145,7 @@ namespace Tables {
              * Note the current content will be lost if the log is not empty
              * 
              */
-            void initRelayLogContent(server::UpdateReplayLogRequest content);
+            void initRelayLogContent(const server::UpdateReplayLogRequest *content);
 
             /**
              * @brief get a copy of the replay log content in the passed in 
@@ -166,6 +166,8 @@ namespace Tables {
             // or addition of new entry does not happen at the same time as garbage collection
             mutable std::shared_mutex gc_entry_mutex;
             std::unordered_map<std::string, replayLogEntry *> client_list;
+
+            void clearContent();
     };
     extern ReplayLog replayLog;
 };
