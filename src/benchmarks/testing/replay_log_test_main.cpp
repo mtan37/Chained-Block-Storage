@@ -11,7 +11,7 @@
 
 using namespace std;
 
-int addSimpleIds() {
+int addSimpleIds(int reset_replay_log) {
     for (int i = 0; i < 100; i++) {
         server::ClientRequestId client_id;
         client_id.set_ip("1.1.1.1");
@@ -27,13 +27,18 @@ int addSimpleIds() {
             return -1;
         }
 
+        if (reset_replay_log) {
+            server::UpdateReplayLogRequest content;
+            Tables::replayLog.getRelayLogContent(content);
+            Tables::replayLog.initRelayLogContent(&content);
+        }
+
         int add_result_fail = Tables::replayLog.addToLog(client_id);
         if (add_result_fail >= 0) {
             cout<<"add to log success when it should fail"<<endl;
             return -1;
         }
     }
-    //Tables::replayLog.printRelayLogContent();
     return 0;
 }
 
@@ -279,7 +284,7 @@ void workLoadTest() {
 }
 
 int main(int argc, char *argv[]) {
-    if (addSimpleIds() < 0) cout << "addSimpleIds test did not pass" << endl;
+    if (addSimpleIds(false) < 0) cout << "addSimpleIds test did not pass" << endl;
     else cout << "addSimpleIds test successful!" << endl;
 
     if (addOldEntry() < 0) cout << "addOldEntry test did not pass" << endl;
@@ -301,5 +306,12 @@ int main(int argc, char *argv[]) {
     workLoadTest();
 
     // the log should be empty at this point
+    std::cout<< "*******print log content*******" << endl;
     Tables::replayLog.printRelayLogContent();
+
+    if (addSimpleIds(true) < 0) cout << "addSimpleIds(with replay log transfer) test did not pass" << endl;
+    else cout << "addSimpleIds(with replay log transfer) test successful!" << endl;
+    std::cout<< "*******print log content*******" << endl;
+    Tables::replayLog.printRelayLogContent();
+
 }
