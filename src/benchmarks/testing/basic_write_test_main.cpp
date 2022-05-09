@@ -15,8 +15,9 @@ int main(int argc, char *argv[]) {
     else cout << "..Servers inconsistent" << endl;
 
     Client::DataBlock data, data_resp;
-    for (int i = 0; i < 4096; ++i) {
-        data.buff[i] = i%256;
+    for (int i = 0; i < BLOCK_SIZE; ++i) {
+        data.buff[i] =  'a';
+//        data.buff[i] =  i%256;
     }
 //    memcpy(data.buff, write_content.c_str(), Constants::BLOCK_SIZE);
     google::protobuf::Timestamp tm;
