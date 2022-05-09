@@ -81,6 +81,6 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *context,
         const server::UpdateReplayLogRequest *request,
         google::protobuf::Empty *reply) {
-        Tables::replayLog.initRelayLogContent(*request);
+        Tables::replayLog.initRelayLogContent(request);
         return grpc::Status::OK;
 }

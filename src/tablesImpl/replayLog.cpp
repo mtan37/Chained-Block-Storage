@@ -181,6 +181,7 @@ namespace Tables {
     }
 
     void ReplayLog::printRelayLogContent() {
+        new_entry_mutex.lock();
         for (auto client_entry_pair : client_list) {
             std::cout << "for client " << client_entry_pair.first << std::endl;
             replayLogEntry *client_entry = client_entry_pair.second;
@@ -189,13 +190,69 @@ namespace Tables {
                 std::cout << " " << (*it).first.seconds() << ":" << (*it).first.nanos() << std::endl;
             }
         }
+        new_entry_mutex.unlock();
     }
 
-    void ReplayLog::initRelayLogContent(server::UpdateReplayLogRequest content) {
-        // TODO
+    void ReplayLog::initRelayLogContent(const server::UpdateReplayLogRequest *content) {
+        this->clearContent();
+
+        std::shared_lock lock(gc_entry_mutex);
+        int client_list_size = content->entry_size();
+        for (int i = 0; i < client_list_size; i++) {
+            server::ReplayLogEntry entry = content->entry(i);
+
+            replayLogEntry *new_entry = new replayLogEntry();
+            
+            // add timestamp
+            int timestamp_size = entry.timestamp_size();
+            for (int j = 0; j < timestamp_size; j++) {
+                google::protobuf::Timestamp new_timestamp;
+                new_timestamp.set_seconds(entry.timestamp(j).seconds());
+                new_timestamp.set_nanos(entry.timestamp(j).nanos());
+
+                new_entry->timestamp_list.insert(
+                    std::make_pair(new_timestamp, entry.committed(j)));
+            }
+            client_list.insert(std::make_pair(entry.identifier(), new_entry));
+        }
+
+        std::shared_lock unlock(gc_entry_mutex);
     }
 
     void ReplayLog::getRelayLogContent(server::UpdateReplayLogRequest &content) {
-        // TODO
+        std::shared_lock lock(gc_entry_mutex);
+
+        for (auto client_entry_pair : client_list) {
+            std::string identifier = client_entry_pair.first;
+            replayLogEntry *client_entry = client_entry_pair.second;
+
+            server::ReplayLogEntry *entry = content.add_entry();
+            entry->set_identifier(identifier);
+
+            // adding all the timestamp and commit
+            for (auto it = client_entry->timestamp_list.begin();
+                it != client_entry->timestamp_list.end(); it++) {
+                google::protobuf::Timestamp *timestamp = entry->add_timestamp();
+                timestamp->set_seconds(it->first.seconds());
+                timestamp->set_nanos(it->first.nanos());
+                entry->add_committed(it->second);
+            }
+        }
+        std::shared_lock unlock(gc_entry_mutex);
+    }
+
+    void ReplayLog::clearContent() {
+
+        std::shared_lock lock(gc_entry_mutex);
+
+        for (auto client_entry_pair : client_list) {
+            replayLogEntry *client_entry = client_entry_pair.second;
+            client_entry->timestamp_list.clear();
+            delete client_entry;
+        }
+        client_list.clear();
+
+        std::shared_lock unlock(gc_entry_mutex);
+
     }
 }
