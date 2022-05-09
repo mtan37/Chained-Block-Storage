@@ -24,6 +24,9 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         entry.seqNum = request->seqnum();
         entry.volumeOffset = request->offset();
         entry.data = request->data();
+        entry.reqId = request->clientrequestid();
+        
+        cout << "Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
         
         Tables::pendingQueue.pushEntry(entry);
         cout << "RelayWrite finished" << endl;
@@ -33,16 +36,22 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *context,
     const server::RelayWriteAckRequest *request,
     google::protobuf::Empty *reply) {
-        
+        cout << "RelayWriteAck called" << endl;
         while (Tables::commitSeq + 1 != request->seqnum()) {}
         //Remove from sent list
         Tables::SentList::sentListEntry sentListEntry = Tables::sentList.popEntry((int) request->seqnum());
         Storage::commit(request->seqnum(), sentListEntry.volumeOffset);
         Tables::replayLog.commitLogEntry(request->clientrequestid());
                 
+        int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
+        cout << "Committed entry " << request->seqnum() << " with reqId " << sentListEntry.reqId.ip() << ":" << sentListEntry.reqId.pid() << ":" << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
+        Tables::replayLog.printRelayLogContent();     
+           
         Tables::commitSeq = (int) request->seqnum();
         
-        while (server::state != HEAD || server::state != SINGLE) {
+        cout << "RelayWriteAck checkpoint 1" << endl;
+        
+        while (server::state != HEAD && server::state != SINGLE) {
             //Relay to previous nodes
             grpc::ClientContext relay_context;
             google::protobuf::Empty RelayWriteAckReply;
@@ -52,7 +61,7 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
             if (status.ok()) break;
             sleep(1);
         }
-        
+        cout << "RelayWriteAck checkpoint 2" << endl;
         return grpc::Status::OK;
 }
 

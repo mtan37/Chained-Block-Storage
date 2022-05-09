@@ -204,8 +204,9 @@ void relay_write_background() {
                 server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
                 clientRequestId->set_ip(pending_entry.reqId.ip());
                 clientRequestId->set_pid(pending_entry.reqId.pid());
-                google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
-                timestamp = pending_entry.reqId.timestamp();
+                google::protobuf::Timestamp *timestamp = clientRequestId->mutable_timestamp();
+                timestamp->set_seconds(pending_entry.reqId.timestamp().seconds());
+                timestamp->set_nanos(pending_entry.reqId.timestamp().nanos());
 
                 string node_addr(server::downstream->ip + ":" + to_string(server::downstream->port));
                 grpc::ChannelArguments args;
@@ -216,6 +217,8 @@ void relay_write_background() {
 
                 grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
                 cout << "Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
+                cout << "ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
+                cout << "Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
                 if (status.ok()) break;
                 sleep(1);
                 
@@ -275,7 +278,7 @@ void relay_write_ack_background() {
             cout << "Committed entry " << seq << " with reqId " << sentListEntry.reqId.ip() << ":" << sentListEntry.reqId.pid() << ":" << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
             Tables::replayLog.printRelayLogContent();
             
-            while (server::state == server::TAIL) {
+            while (server::state == server::TAIL) {    
                 //Relay to previous nodes
                 grpc::ClientContext relay_context;
                 google::protobuf::Empty RelayWriteAckReply;
@@ -284,11 +287,12 @@ void relay_write_ack_background() {
                 server::ClientRequestId *clientRequestId = request.mutable_clientrequestid();
                 clientRequestId->set_ip(sentListEntry.reqId.ip());
                 clientRequestId->set_pid(sentListEntry.reqId.pid());
-                google::protobuf::Timestamp timestamp = *clientRequestId->mutable_timestamp();
-                timestamp = sentListEntry.reqId.timestamp();
+                google::protobuf::Timestamp *timestamp = clientRequestId->mutable_timestamp();
+                timestamp->set_seconds(sentListEntry.reqId.timestamp().seconds());
+                timestamp->set_nanos(sentListEntry.reqId.timestamp().nanos());
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
-
+                cout << "Forward attempt to " << server::upstream->ip << ":" << server::upstream->port << ": " << status.error_code() << endl;
                 if (status.ok()) break;
                 sleep(1);
             }
