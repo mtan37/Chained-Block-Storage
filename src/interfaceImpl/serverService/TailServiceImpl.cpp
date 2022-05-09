@@ -6,7 +6,6 @@
 using namespace std;
 
 
-
 grpc::Status server::TailServiceImpl::WriteAck (
     grpc::ServerContext *context,
     const server::WriteAckRequest *request,
@@ -18,6 +17,25 @@ grpc::Status server::TailServiceImpl::WriteAck (
             reply->set_committed(true);
         else
             reply->set_committed(false);
+            
+        while (server::state == server::TAIL || server::state == server::SINGLE) {
+            grpc::ClientContext relay_context;
+            google::protobuf::Empty ackReplayLogReply;
+            server::AckReplayLogRequest ackReplayLogRequest;
+            server::ClientRequestId *clientRequestId = ackReplayLogRequest.mutable_clientrequestid();
+            clientRequestId->set_ip(request->clientrequestid().ip());
+            clientRequestId->set_pid(request->clientrequestid().pid());
+            google::protobuf::Timestamp *timestamp = clientRequestId->mutable_timestamp();
+            timestamp->set_seconds(request->clientrequestid().timestamp().seconds());
+            timestamp->set_nanos(request->clientrequestid().timestamp().nanos());
+
+            grpc::Status status = server::upstream->stub->AckReplayLog(&relay_context, ackReplayLogRequest, &ackReplayLogReply);
+            cout << "...ReplayLog forward attempt to " << server::upstream->ip << ":"
+                << server::upstream->port << " returned: " << status.error_code() << endl;
+            if (status.ok()) break;
+            server::build_node_stub(server::upstream);
+        
+        }
         
         return grpc::Status::OK;
 }

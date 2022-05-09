@@ -16,7 +16,10 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     google::protobuf::Empty *reply) {
         cout << "Upstream called RelayWrite - sent seq # " << request->seqnum() << endl;
         //Add to replay log
+        cout << "...Adding to replay log" << endl;
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
+        cout << "...Printing replay log" << endl;
+        Tables::replayLog.printRelayLogContent();
 
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
@@ -111,6 +114,14 @@ grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *con
         google::protobuf::Empty *reply) {
         Tables::replayLog.initRelayLogContent(request);
         return grpc::Status::OK;
+}
+
+grpc::Status server::NodeListenerImpl::AckReplayLog (grpc::ServerContext *context,
+        const server::AckReplayLogRequest *request,
+        google::protobuf::Empty *reply) {
+        int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
+        cout<< "ackLogEntry result is " << result << endl;
+        return grpc::Status::OK;        
 }
 
 /**

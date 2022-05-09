@@ -281,6 +281,8 @@ void relay_write_ack_background() {
             long seq = Tables::commitSeq + 1;
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
+            cout << "...Printing replay log" << endl;
+            Tables::replayLog.printRelayLogContent();
             cout << "Pulling entry " << seq << " off the sent list" << endl;
             cout << "...committing to storage" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
@@ -292,7 +294,7 @@ void relay_write_ack_background() {
                 << sentListEntry.reqId.ip() << ":"
                 << sentListEntry.reqId.pid() << ":"
                 << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
-            cout << "...Printing replay log" << endl;
+            cout << "...Printing replay log again" << endl;
             Tables::replayLog.printRelayLogContent();
             
             while (server::state == server::TAIL) {    

@@ -99,6 +99,10 @@ public:
     grpc::Status ChecksumChain (grpc::ServerContext *context,
                                const server::ChecksumReply *request,
                                server::ChecksumReply *reply);
+                               
+    grpc::Status AckReplayLog (grpc::ServerContext *context,
+                                      const server::AckReplayLogRequest *request,
+                                      google::protobuf::Empty *reply);
 };
 
 void relay_write_ack_background();
