@@ -15,16 +15,19 @@ int main(int argc, char *argv[]) {
     else cout << "..Servers inconsistent" << endl;
 
     Client::DataBlock data, data_resp;
-    std::string write_content = "yesyes";
-    memcpy(data.buff, write_content.c_str(), Constants::BLOCK_SIZE);
+    for (int i = 0; i < 4096; ++i) {
+        data.buff[i] = i%256;
+    }
+//    memcpy(data.buff, write_content.c_str(), Constants::BLOCK_SIZE);
     google::protobuf::Timestamp tm;
 
     c.write(data, tm, 0);
-    cout << "Client test: A write data to server. Content is " << write_content << endl;
+    cout << "Client test: A write data to server." << endl;
 //    cout << "Client test: generated timestamp " << tm.seconds() << ":" << tm.nanos() << endl;
 
-    sleep(5);
+    sleep(2);
     while (c.ackWrite(tm) < 0) {
+        std::cout << "trying to ack write" << endl;
         sleep(1);
     }
 

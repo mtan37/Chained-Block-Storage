@@ -74,7 +74,7 @@ namespace server {
      * failure scenarios, and must be shutdown appropriately when no longer tail.
      */
     void launch_tail(){
-        std::string my_address(server::my_ip + ":" + to_string(my_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port+Constants::tail_port));
         server::TailServiceImpl *tailServiceImpl = new server::TailServiceImpl();
         grpc::ServerBuilder tailBuilder;
         tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
@@ -95,7 +95,7 @@ namespace server {
      * Launch head.  Head never reverts, so we can detach head service thread.
      */
     void launch_head(){
-        std::string my_address(server::my_ip + ":" + to_string(my_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port + Constants::head_port));
         cout << "About to launch head at " << my_address << endl;
         server::HeadServiceImpl *headServiceImpl = new server::HeadServiceImpl();
         grpc::ServerBuilder headBuilder;
