@@ -594,7 +594,7 @@ std::string checksum() {
   std::stringstream ss;
   ss << std::hex;
   for (int i = 0; i < MD5_DIGEST_LENGTH; ++i) {
-    ss << (int)results[i];
+    ss << (int)final_result[i];
   }
   ss >> to_return;
 
