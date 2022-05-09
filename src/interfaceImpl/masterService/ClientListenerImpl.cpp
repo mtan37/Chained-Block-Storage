@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "master.h"
+#include "constants.hpp"
 
 using namespace std;
 
@@ -18,7 +19,7 @@ grpc::Status master::ClientListenerImpl::GetConfig (
             reply_head->set_port(-1);
         } else {
             reply_head->set_ip(headNode->ip);
-            reply_head->set_port(headNode->port);
+            reply_head->set_port(headNode->port + Constants::head_port);
         }
 
         master::ServerIp * reply_tail = reply->mutable_tail();
@@ -27,7 +28,7 @@ grpc::Status master::ClientListenerImpl::GetConfig (
             reply_head->set_port(-1);
         } else {
             reply_tail->set_ip(tailNode->ip);
-            reply_tail->set_port(tailNode->port);
+            reply_tail->set_port(tailNode->port  + Constants::tail_port);
         }
 
         return grpc::Status::OK;

@@ -53,6 +53,10 @@ public:
     grpc::Status Write (grpc::ServerContext *context,
                           const server::WriteRequest *request,
                           server::WriteReply *reply);
+
+    grpc::Status ChecksumSystem (grpc::ServerContext *context,
+                        const google::protobuf::Empty *request,
+                        server::ChecksumReply *reply);
 };
 
 class server::TailServiceImpl final : public server::TailService::Service {
@@ -91,6 +95,10 @@ public:
     grpc::Status UpdateReplayLog (grpc::ServerContext *context,
             const server::UpdateReplayLogRequest *request,
             google::protobuf::Empty *reply);
+
+    grpc::Status ChecksumChain (grpc::ServerContext *context,
+                               const server::ChecksumReply *request,
+                               server::ChecksumReply *reply);
 };
 
 void relay_write_ack_background();

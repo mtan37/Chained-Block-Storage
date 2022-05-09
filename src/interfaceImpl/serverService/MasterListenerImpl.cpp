@@ -48,7 +48,6 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     // which should be ok?
     changemode_mtx.lock();
     server::State old_state = server::state;
-    server::state = server::TRANSITION;
     server::State new_state = static_cast<server::State>(request->new_state());
     cout << "Transitioning to " << server::get_state(new_state) << endl;
 
@@ -203,9 +202,9 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
 
     cout << "...New state = " << server::get_state(server::state) << endl;
     if (server::upstream)
-    cout << "...New upstream IP = " << server::upstream->ip << endl;
+    cout << "...New upstream IP = " << server::upstream->ip << ":" << server::upstream->port << endl;
     if (server::downstream)
-    cout << "...New downstream IP = " << server::downstream->ip << endl;
+    cout << "...New downstream IP = " << server::downstream->ip << ":" << server::downstream->port << endl;
     changemode_mtx.unlock();
     return grpc::Status::OK;
 }
