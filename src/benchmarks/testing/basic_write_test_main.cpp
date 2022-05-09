@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
     else cout << "..Servers inconsistent" << endl;
 
     Client::DataBlock data, data_resp;
-    for (int i = 0; i < BLOCK_SIZE; ++i) {
+    for (int i = 0; i < Constants::BLOCK_SIZE; ++i) {
         data.buff[i] =  'a';
 //        data.buff[i] =  i%256;
     }
