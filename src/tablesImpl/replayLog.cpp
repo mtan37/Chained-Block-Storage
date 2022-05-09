@@ -114,11 +114,15 @@ namespace Tables {
 
     int ReplayLog::commitLogEntry(server::ClientRequestId client_request_id) {
         // locate the client entry
+        std::shared_lock lock_shared(gc_entry_mutex);
         std::string identifier = client_request_id.ip() + ":" + std::to_string(client_request_id.pid());
         std::unordered_map<std::string, 
             replayLogEntry*>::const_iterator replay_log_it = 
             client_list.find(identifier);
-        if (replay_log_it == client_list.end()) return -1;
+        if (replay_log_it == client_list.end()) {
+            std::shared_lock unlock_shared(gc_entry_mutex);
+            return -1;
+        }
         replayLogEntry *client_entry = replay_log_it->second;
 
         // locate the timestamp entry
@@ -130,10 +134,18 @@ namespace Tables {
             bool, Tables::googleTimestampComparator>::iterator timestamp_it = 
             client_entry->timestamp_list.find(client_request_id.timestamp());
 
-        if (timestamp_it == client_entry->timestamp_list.end()) return -1;
-        if (timestamp_it->second) return -2; // already committed
+        if (timestamp_it == client_entry->timestamp_list.end()) {
+            std::shared_lock unlock_shared(gc_entry_mutex);
+            return -1;
+        }
+
+        if (timestamp_it->second) {
+            std::shared_lock unlock_shared(gc_entry_mutex);
+            return -2; // already committed
+        }
         // mark the timestamp as committed
         timestamp_it->second = true;
+        std::shared_lock unlock_shared(gc_entry_mutex);
         return 0;
     }
 
