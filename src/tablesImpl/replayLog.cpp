@@ -183,7 +183,7 @@ namespace Tables {
     void ReplayLog::printRelayLogContent() {
         new_entry_mutex.lock();
         for (auto client_entry_pair : client_list) {
-            std::cout << "for client " << client_entry_pair.first << std::endl;
+            std::cout << "......for client " << client_entry_pair.first << std::endl;
             replayLogEntry *client_entry = client_entry_pair.second;
             std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator>::iterator it;
             for (it = client_entry->timestamp_list.begin(); it != client_entry->timestamp_list.end(); it++) {

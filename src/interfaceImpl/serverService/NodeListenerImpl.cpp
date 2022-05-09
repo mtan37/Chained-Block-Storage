@@ -14,7 +14,7 @@ using namespace std;
 grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
-        cout << "RelayWrite called" << endl;
+        cout << "Upstream called RelayWrite - sent seq # " << request->seqnum() << endl;
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
 
@@ -26,13 +26,26 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         entry.data = request->data();
         entry.reqId = request->clientrequestid();
         
-        cout << "Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
+        cout << "...Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
         
         Tables::pendingQueue.pushEntry(entry);
-        cout << "RelayWrite finished" << endl;
+
+        cout << "...Finished Writing ("
+             << entry.reqId.ip() << ":"
+             << entry.reqId.pid() << ":"
+             << entry.reqId.timestamp().seconds() << ") to pending queue" <<  endl;
+
         return grpc::Status::OK;
 }
 
+/**
+ * Pops seq# off sent list and Commits based on seq # sent from downstream node.
+ *
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
 grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *context,
     const server::RelayWriteAckRequest *request,
     google::protobuf::Empty *reply) {
@@ -40,15 +53,21 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
         while (Tables::commitSeq + 1 != request->seqnum()) {}
         //Remove from sent list
         Tables::SentList::sentListEntry sentListEntry = Tables::sentList.popEntry((int) request->seqnum());
+        cout << "...committing to storage" << endl;
         Storage::commit(request->seqnum(), sentListEntry.volumeOffset);
-                
+        cout << "...committing log entry on replay log" << endl;
         int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
-        cout << "Committed entry " << request->seqnum() << " with reqId " << sentListEntry.reqId.ip() << ":" << sentListEntry.reqId.pid() << ":" << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
-        Tables::replayLog.printRelayLogContent();     
+
+        cout << "...Committed entry " << request->seqnum() << " with reqId "
+            << sentListEntry.reqId.ip() << ":"
+            << sentListEntry.reqId.pid() << ":"
+            << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
+        cout << "...Printing replay log" << endl;
+        Tables::replayLog.printRelayLogContent();
            
         Tables::commitSeq = (int) request->seqnum();
         
-        cout << "RelayWriteAck checkpoint 1" << endl;
+        cout << "...RelayWriteAck checkpoint 1" << endl;
         
         while (server::state != HEAD && server::state != SINGLE) {
             //Relay to previous nodes
@@ -56,11 +75,12 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
             google::protobuf::Empty RelayWriteAckReply;
             
             grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, *request, &RelayWriteAckReply);
-
+            cout << "...Forward attempt to " << server::upstream->ip << ":"
+                 << server::upstream->port << " returned: " << status.error_code() << endl;
             if (status.ok()) break;
             sleep(1);
         }
-        cout << "RelayWriteAck checkpoint 2" << endl;
+        cout << "...RelayWriteAck checkpoint 2" << endl;
         return grpc::Status::OK;
 }
 
@@ -91,4 +111,41 @@ grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *con
         google::protobuf::Empty *reply) {
         Tables::replayLog.initRelayLogContent(request);
         return grpc::Status::OK;
+}
+
+/**
+ * Checksum volume, if not tail send downstream
+ * if sent downstream then need to check that our checksum matches and return
+ * valid + (my CS == downstream CS)
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
+grpc::Status server::NodeListenerImpl::ChecksumChain (grpc::ServerContext *context,
+                            const server::ChecksumReply *request,
+                            server::ChecksumReply *reply){
+    // Chain
+    cout << "Running Checksum" << endl;
+    grpc::ClientContext cs_context;
+    if (request->valid()) cout << "...initially valid" << endl;
+    else cout << "...initially invalid" << endl;
+
+    string my_cs, ds_cs;
+
+    my_cs = Storage::checksum();
+    if (server::state != server::TAIL && server::state != server::SINGLE){
+        grpc::Status status = server::downstream->stub->ChecksumChain(&cs_context, *request, reply);
+        if (!status.ok()){
+            cout << "Something went terribly wrong with checksum" << endl;
+        }
+        ds_cs = reply->chk_sum();
+    } else ds_cs = my_cs;
+
+    cout << "Checksum = " << my_cs << endl;
+    reply->set_valid(request->valid() && (ds_cs == my_cs));
+    reply->set_chk_sum(my_cs);
+    if (reply->valid()) cout << "...chain matches" << endl;
+    else cout << "...chain inconsistent" << endl;
+    return grpc::Status::OK;
 }

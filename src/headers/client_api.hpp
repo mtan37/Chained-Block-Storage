@@ -2,6 +2,7 @@
 #include <map>
 #include <grpc++/grpc++.h>
 #include "master.h"
+#include "server.h"
 #include "tables.hpp"
 using namespace std;
 
@@ -50,7 +51,10 @@ class Client {
         // resend the top pending write to server
         // return the timestamp of the request that were retired
         void retryTopPendingWrite(google::protobuf::Timestamp &timestamp);
-    private:
+
+        // run checksum through chain
+        server::ChecksumReply checksum ();
+private:
         string master_ip;
         string master_port;
         string client_ip;
