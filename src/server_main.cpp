@@ -188,16 +188,16 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-            cout << "WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is "
+            cout << "(RWB) WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is "
                 << Tables::pendingQueue.peekEntry().seqNum << endl;
             while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            cout << "...Pulling entry " << pending_entry.seqNum << " off the pending list ("
+            cout << "...(RWB) Pulling entry " << pending_entry.seqNum << " off the pending list ("
                     << pending_entry.reqId.ip() << ":"
                     << pending_entry.reqId.pid() << ":"
                     << pending_entry.reqId.timestamp().seconds() << ")" << endl;
             while (server::state != server::TAIL && server::state != server::SINGLE) { 
-                cout << "...Relaying write downstream" << endl;
+                cout << "...(RWB) Relaying write downstream" << endl;
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
 
@@ -220,20 +220,20 @@ void relay_write_background() {
 
 
                 grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
-                cout << "......Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
-                cout << "......ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
-                cout << "......Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
+                cout << "......(RWB) Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
+                cout << "......(RWB) ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
+                cout << "......(RWB) Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
                 if (status.ok()) break;
                 sleep(1);
                 
             } //End forwarding if non-tail
 
-            cout << "...Background write thread checkpoint 1 (writing to volume)" << endl;
-            cout << "WRITING :" << pending_entry.data << ":" << endl;
+            cout << "...(RWB) Background write thread checkpoint 1 (writing to volume)" << endl;
+            cout << "...(RWB) WRITING :" << pending_entry.data.length() << ":" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
             Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
-            cout << "...Background write thread checkpoint 2 (written to volume)" << endl;
+            cout << "...(RWB) Background write thread checkpoint 2 (written to volume)" << endl;
             Tables::writeSeq++;
             
             //Add to sent list
@@ -263,7 +263,7 @@ void relay_write_background() {
             sent_entry.reqId = pending_entry.reqId;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
 
-            cout << "Wrote entry, added to sentList" << endl;
+            cout << "(RWB) Wrote entry, added to sentList" << endl;
         }
     }
 }
@@ -273,7 +273,7 @@ void relay_write_background() {
  * upstream if tail
  */
 void relay_write_ack_background() {
-    cout << "STARTING RELAY WRITE ACK BACKGROUND" << endl;
+    cout << "(RWAB) STARTING RELAY WRITE ACK BACKGROUND" << endl;
     while (server::state == server::TAIL || server::state == server::SINGLE) { 
         Tables::SentList::sentListEntry sentListEntry;
         //Remove from sent list
@@ -281,20 +281,20 @@ void relay_write_ack_background() {
             long seq = Tables::commitSeq + 1;
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
-            cout << "...Printing replay log" << endl;
+            cout << "...(RWAB)Printing replay log" << endl;
             Tables::replayLog.printRelayLogContent();
-            cout << "Pulling entry " << seq << " off the sent list" << endl;
-            cout << "...committing to storage" << endl;
+            cout << "...(RWAB) Pulling entry " << seq << " off the sent list" << endl;
+            cout << "...(RWAB) committing to storage" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
-            cout << "...committing log entry on replay log" << endl;
+            cout << "...(RWAB) committing log entry on replay log" << endl;
             int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
                 
             Tables::commitSeq++;
-            cout << "...Committed entry " << seq << " with reqId "
+            cout << "...(RWAB) Committed entry " << seq << " with reqId "
                 << sentListEntry.reqId.ip() << ":"
                 << sentListEntry.reqId.pid() << ":"
                 << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
-            cout << "...Printing replay log again" << endl;
+            cout << "...(RWAB) Printing replay log again" << endl;
             Tables::replayLog.printRelayLogContent();
             
             while (server::state == server::TAIL) {    
@@ -311,12 +311,13 @@ void relay_write_ack_background() {
                 timestamp->set_nanos(sentListEntry.reqId.timestamp().nanos());
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
-                cout << "...Forward attempt to " << server::upstream->ip << ":"
+                cout << "...(RWAB) Forward attempt to " << server::upstream->ip << ":"
                     << server::upstream->port << " returned: " << status.error_code() << endl;
                 if (status.ok()) break;
                 server::build_node_stub(server::upstream);
 //                sleep(1);
             }
+            cout << "...(RWAB) Finished processing next entry" << endl;
         }
         catch (...) {}
     }

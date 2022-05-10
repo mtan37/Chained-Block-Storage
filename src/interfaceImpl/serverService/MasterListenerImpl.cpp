@@ -93,6 +93,8 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         downstream->stub->UpdateReplayLog(&replayContext, replayRequest, &replayReply);
     }
 
+    // need to switch state prior to launcing tail.
+    server::state = new_state;
     // If new state != old state then head\tail failure or integration, else mid failure
     if (new_state != old_state) {
         bool clear_upstream = false, clear_downstream = false;
@@ -198,7 +200,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
 
 
 
-    server::state = new_state;
+
 
     cout << "...New state = " << server::get_state(server::state) << endl;
     if (server::upstream)

@@ -120,7 +120,26 @@ grpc::Status server::NodeListenerImpl::AckReplayLog (grpc::ServerContext *contex
         const server::AckReplayLogRequest *request,
         google::protobuf::Empty *reply) {
         int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
-        cout<< "ackLogEntry result is " << result << endl;
+        cout<< "(URL) ackLogEntry result is " << result << endl;
+        while (server::state != server::HEAD && server::state != server::SINGLE) {
+            grpc::ClientContext relay_context;
+            google::protobuf::Empty ackReplayLogReply;
+            server::AckReplayLogRequest ackReplayLogRequest;
+            server::ClientRequestId *clientRequestId = ackReplayLogRequest.mutable_clientrequestid();
+            clientRequestId->set_ip(request->clientrequestid().ip());
+            clientRequestId->set_pid(request->clientrequestid().pid());
+            google::protobuf::Timestamp *timestamp = clientRequestId->mutable_timestamp();
+            timestamp->set_seconds(request->clientrequestid().timestamp().seconds());
+            timestamp->set_nanos(request->clientrequestid().timestamp().nanos());
+
+            grpc::Status status = server::upstream->stub->AckReplayLog(&relay_context, ackReplayLogRequest, &ackReplayLogReply);
+            cout << "...(URL) ReplayLog forward attempt to " << server::upstream->ip << ":"
+                 << server::upstream->port << " returned: " << status.error_code() << endl;
+            if (status.ok()) break;
+            server::build_node_stub(server::upstream);
+
+        }
+        cout << "(URL) exiting" << endl;
         return grpc::Status::OK;        
 }
 

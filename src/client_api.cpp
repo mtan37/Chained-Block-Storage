@@ -10,9 +10,9 @@ void Client::refreshConfig() {
     google::protobuf::Empty request;
     master::GetConfigReply reply;
     grpc::Status status = this->master_stub->GetConfig(&context, request, &reply);
-    cout << "Refreshing config" << endl;
-    cout << "...head = " << reply.head().ip() << ":" << reply.head().port() << endl;
-    cout << "...tail = " << reply.tail().ip() << ":" << reply.tail().port() << endl;
+    cout << "...Refreshing config" << endl;
+    cout << "......head = " << reply.head().ip() << ":" << reply.head().port() << endl;
+    cout << "......tail = " << reply.tail().ip() << ":" << reply.tail().port() << endl;
     if (!status.ok()) throw std::runtime_error("Client: Can't contact the master");
 
     master::ServerIp head = reply.head();

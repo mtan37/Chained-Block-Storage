@@ -2,6 +2,7 @@
 #include "server.h"
 #include "tables.hpp"
 #include "storage.hpp"
+#include "constants.hpp"
 using namespace std;
 
 
@@ -28,10 +29,13 @@ grpc::Status server::HeadServiceImpl::Write (
         long seq = Tables::currentSeq++;
         
 //        cout << "Write checkpoint 2" << endl;
-        
+
+        string m_data(request->data(), 0, Constants::BLOCK_SIZE);
+//        cout << ":" << m_data << ": written to pending queue" << endl;
         entry.seqNum = seq;
         entry.volumeOffset = request->offset();
-        entry.data = request->data();
+        entry.data = m_data;
+//        entry.data = request->data();
         entry.reqId = request->clientrequestid();
         
 //        cout << "Write checkpoint 3" << endl;
@@ -42,7 +46,7 @@ grpc::Status server::HeadServiceImpl::Write (
         
         reply->set_seqnum(seq);
         
-        cout << "...Finished Writing ("
+        cout << "...Finished Writing to pending queue ("
                 << entry.reqId.ip() << ":"
                 << entry.reqId.pid() << ":"
                 << entry.reqId.timestamp().seconds() << ") to pending queue" <<  endl;

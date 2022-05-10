@@ -199,7 +199,7 @@ namespace Tables {
             replayLogEntry *client_entry = client_entry_pair.second;
             std::map<google::protobuf::Timestamp, bool, Tables::googleTimestampComparator>::iterator it;
             for (it = client_entry->timestamp_list.begin(); it != client_entry->timestamp_list.end(); it++) {
-                std::cout << " " << (*it).first.seconds() << ":" << (*it).first.nanos() << std::endl;
+                std::cout << "........." << (*it).first.seconds() << ":" << (*it).first.nanos() << std::endl;
             }
         }
         new_entry_mutex.unlock();

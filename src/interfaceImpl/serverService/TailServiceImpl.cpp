@@ -12,13 +12,13 @@ grpc::Status server::TailServiceImpl::WriteAck (
     server::WriteAckReply *reply) {
     
         int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
-        cout<< "ackLogEntry result is " << result << endl;
+        cout<< "(WA) ackLogEntry result is " << result << endl;
         if (result == 0)
             reply->set_committed(true);
         else
             reply->set_committed(false);
             
-        while (server::state == server::TAIL || server::state == server::SINGLE) {
+        while (server::state == server::TAIL) {
             grpc::ClientContext relay_context;
             google::protobuf::Empty ackReplayLogReply;
             server::AckReplayLogRequest ackReplayLogRequest;
@@ -30,13 +30,13 @@ grpc::Status server::TailServiceImpl::WriteAck (
             timestamp->set_nanos(request->clientrequestid().timestamp().nanos());
 
             grpc::Status status = server::upstream->stub->AckReplayLog(&relay_context, ackReplayLogRequest, &ackReplayLogReply);
-            cout << "...ReplayLog forward attempt to " << server::upstream->ip << ":"
+            cout << "...(WA) ReplayLog forward attempt to " << server::upstream->ip << ":"
                 << server::upstream->port << " returned: " << status.error_code() << endl;
             if (status.ok()) break;
             server::build_node_stub(server::upstream);
         
         }
-        
+        cout << "(WA) exiting" << endl;
         return grpc::Status::OK;
 }
 
