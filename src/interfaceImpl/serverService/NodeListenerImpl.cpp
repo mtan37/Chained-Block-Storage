@@ -55,13 +55,6 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
         Storage::commit(request->seqnum(), sentListEntry.volumeOffset);
         cout << "...committing log entry on replay log" << endl;
         int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
-
-        cout << "...Committed entry " << request->seqnum() << " with reqId "
-            << sentListEntry.reqId.ip() << ":"
-            << sentListEntry.reqId.pid() << ":"
-            << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
-        cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
            
         Tables::commitSeq = (int) request->seqnum();
         
