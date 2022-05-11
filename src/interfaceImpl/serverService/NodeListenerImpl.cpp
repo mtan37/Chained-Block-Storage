@@ -20,7 +20,6 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         cout << "...Adding to replay log" << endl;
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
         cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
 
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
@@ -70,7 +69,6 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
             << sentListEntry.reqId.pid() << ":"
             << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
         cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
            
         Tables::commitSeq = (int) request->seqnum();
         
