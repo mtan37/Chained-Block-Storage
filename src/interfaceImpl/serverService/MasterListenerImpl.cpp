@@ -75,7 +75,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         std::vector<std::pair<long, long>> restoreOffsets = Storage::get_modified_offsets(request->last_seq_num());
 //        sort(restoreOffsets.begin(), restoreOffsets.end());
         for (auto i : restoreOffsets) {
-            cout << "......Sending sequence number " << i.second << endl;
+//            cout << "......Sending sequence number " << i.second << endl;
             server::RestoreEntry *restoreEntry = restoreRequest.add_entry();
             restoreEntry->set_offset(i.first);
             restoreEntry->set_seqnum(i.second);
@@ -202,9 +202,6 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
             }
         }
     }
-
-
-
 
 
     cout << "...New state = " << server::get_state(server::state) << endl;
