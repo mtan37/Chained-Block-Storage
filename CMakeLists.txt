@@ -151,18 +151,20 @@ foreach(_target client_test basic_write_test)
 endforeach()
 
 # compile benchmarks
-foreach(_target storage_benchmark)
+foreach(_target storage_benchmark throughput_benchmark)
   add_executable(${_target} 
     ./src/benchmarks/${_target}.cpp
     ${TableImpls}
     ./src/headers/server.h
+    ./src/headers/master.h
     ${_VOLUME_CPP}
+    ./src/client_api.cpp
     )
 
   target_compile_features(${_target} PRIVATE cxx_std_17)
   target_compile_options(${_target} PRIVATE -fPIC)
 
   target_link_libraries(${_target}
-    server_grpc_proto
+    server_grpc_proto master_grpc_proto
   )
 endforeach()
