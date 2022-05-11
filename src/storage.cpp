@@ -139,8 +139,7 @@ static void read_aligned(char* buf, long volume_offset) {
 
 static int64_t get_free_block_num() {
   if (free_blocks.size() == 0) {
-    ++num_total_blocks;
-    return num_total_blocks;
+    return ++num_total_blocks;
   }
   int64_t num = free_blocks.front();
   free_blocks.pop();
@@ -168,7 +167,12 @@ static void write_metadata(uncommitted_write& uw,
     offsets[i][1] = get_second_level(v_offsets[i]);
     offsets[i][2] = get_third_level(v_offsets[i]);
     offsets[i][3] = get_last_level(v_offsets[i]);
-    old_block_nums[i][0] = first_block.first_level_blocks[offsets[i][0]];
+    if (sequence_number - 1 > first_block.last_committed) {
+      old_block_nums[i][0] = uncommitted_writes[sequence_number-1]->new_metadata_offset[i];
+    }
+    else {
+      old_block_nums[i][0] = first_block.first_level_blocks[offsets[i][0]];
+    }
     if (old_block_nums[i][0] != 0) {
       read_block(&block[i][0], old_block_nums[i][0]);
       old_block_nums[i][1] = block[i][0].indirect_block[offsets[i][1]];
