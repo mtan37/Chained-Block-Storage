@@ -14,12 +14,7 @@ using namespace std;
 grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
     const server::RelayWriteRequest *request,
     google::protobuf::Empty *reply) {
-        cout << "Upstream called RelayWrite - sent seq # " << request->seqnum() << endl;
-        //Add to replay log
-        cout << "...Adding to replay log" << endl;
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
-        cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
 
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         

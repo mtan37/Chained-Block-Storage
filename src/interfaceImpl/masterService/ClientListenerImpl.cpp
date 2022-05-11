@@ -19,7 +19,7 @@ grpc::Status master::ClientListenerImpl::GetConfig (
             reply_head->set_port(-1);
         } else {
             reply_head->set_ip(headNode->ip);
-            reply_head->set_port(headNode->port + Constants::head_port);
+            reply_head->set_port(headNode->port + Constants::HEAD_PORT_OFFSET);
         }
 
         master::ServerIp * reply_tail = reply->mutable_tail();
@@ -28,7 +28,7 @@ grpc::Status master::ClientListenerImpl::GetConfig (
             reply_head->set_port(-1);
         } else {
             reply_tail->set_ip(tailNode->ip);
-            reply_tail->set_port(tailNode->port  + Constants::tail_port);
+            reply_tail->set_port(tailNode->port  + Constants::TAIL_PORT_OFFSET);
         }
 
         return grpc::Status::OK;
