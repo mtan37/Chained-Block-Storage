@@ -2,6 +2,7 @@
 #include "server.h"
 #include "tables.hpp"
 #include "storage.hpp"
+#include "constants.hpp"
 
 #include <grpc++/grpc++.h>
 
@@ -26,8 +27,11 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         Tables::PendingQueue::pendingQueueEntry entry;
         entry.seqNum = request->seqnum();
         entry.volumeOffset = request->offset();
-        entry.data = request->data();
+        string m_data(request->data(), 0, Constants::BLOCK_SIZE);
+//        entry.data = request->data();
+        entry.data = m_data;
         entry.reqId = request->clientrequestid();
+
         
         cout << "...Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
         

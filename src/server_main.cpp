@@ -229,10 +229,12 @@ void relay_write_background() {
             } //End forwarding if non-tail
 
             cout << "...(RWB) Background write thread checkpoint 1 (writing to volume)" << endl;
+            cout << "...(RWB) WRITING Seq # " << pending_entry.seqNum << " - offset (" << pending_entry.volumeOffset   << ")" << endl;
             cout << "...(RWB) WRITING :" << pending_entry.data.length() << ":" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
-            Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
+            string m_data(pending_entry.data, 0, Constants::BLOCK_SIZE);
+            Storage::write(m_data, pending_entry.volumeOffset, pending_entry.seqNum);
             cout << "...(RWB) Background write thread checkpoint 2 (written to volume)" << endl;
             Tables::writeSeq++;
             
