@@ -91,6 +91,14 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
         return grpc::Status::OK;
 }
 
+
+/**
+ * TODO : What is this for, nothing is calling it?
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
 grpc::Status server::NodeListenerImpl::ReplayLogChange (grpc::ServerContext *context,
         const server::ReplayLogChangeRequest *request,
         google::protobuf::Empty *reply) {
@@ -101,22 +109,27 @@ grpc::Status server::NodeListenerImpl::ReplayLogChange (grpc::ServerContext *con
 grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
         const server::RestoreRequest *request,
         google::protobuf::Empty *reply) {
-        
+
+        cout << "...Running restore" << endl;
         for (int i = 0; i < request->entry_size(); i++) {
             server::RestoreEntry entry = request->entry(i);
+            cout << "...(" << i << ") restoring seq # "  << entry.seqnum() << endl;
             Storage::write(entry.data(), entry.offset(), entry.seqnum());
             Tables::writeSeq = entry.seqnum();
             Storage::commit(entry.seqnum(), entry.offset());
             Tables::commitSeq = entry.seqnum();
             Tables::currentSeq = entry.seqnum() + 1;
         }
+        cout << "...Finished restore" << endl;
         return grpc::Status::OK;       
 }
 
 grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *context,
         const server::UpdateReplayLogRequest *request,
         google::protobuf::Empty *reply) {
+        cout << "...Running UpdateReplayLog" << endl;
         Tables::replayLog.initRelayLogContent(request);
+        cout << "...Finished UpdateReplayLog" << endl;
         return grpc::Status::OK;
 }
 

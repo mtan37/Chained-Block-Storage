@@ -33,6 +33,7 @@ namespace server {
     server::Node *downstream;
     server::Node *upstream;
     std::mutex changemode_mtx;
+    std::mutex restore_mtx;
     State state;
     std::unique_ptr<grpc::Server> headService;
     std::unique_ptr<grpc::Server> tailService;
@@ -135,7 +136,7 @@ int register_server() {
     serverIP->set_port(my_port);
     // add last seq # to request
     request.set_last_seq_num(Tables::commitSeq);
-//    cout << "My last sequence number was " << request.last_seq_num() << endl;
+    cout << "My last sequence number was " << request.last_seq_num() << endl;
     // Create container for reply
     master::RegisterReply reply;
     // Register with master server
@@ -147,6 +148,7 @@ int register_server() {
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
         std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
         grpc::ClientContext context;
+        cout << "Preparing to register" << endl;
         grpc::Status status = master_stub->Register(&context, request, &reply);
         // Check return status on register call
         // Once we get return we are ready to go.  Have been brought up to speed by previous
@@ -160,6 +162,7 @@ int register_server() {
         sleep(backoff);
         backoff += 1;
     }
+    cout << "...Finished registering" << endl;
     // Set state, and if present build communication with old tail
     if (reply.has_prev_addr()) {
         master::ServerIp prev_addy_ip = reply.prev_addr();
@@ -285,7 +288,7 @@ void relay_write_ack_background() {
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
             cout << "...(RWAB)Printing replay log" << endl;
-            Tables::replayLog.printRelayLogContent();
+//            Tables::replayLog.printRelayLogContent();
             cout << "...(RWAB) Pulling entry " << seq << " off the sent list" << endl;
             cout << "...(RWAB) committing to storage" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
@@ -298,7 +301,7 @@ void relay_write_ack_background() {
                 << sentListEntry.reqId.pid() << ":"
                 << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
             cout << "...(RWAB) Printing replay log again" << endl;
-            Tables::replayLog.printRelayLogContent();
+//            Tables::replayLog.printRelayLogContent();
             
             while (server::state == server::TAIL) {    
                 //Relay to previous nodes

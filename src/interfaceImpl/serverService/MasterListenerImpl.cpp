@@ -70,9 +70,12 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         && (old_state == server::TAIL || old_state == server::SINGLE)){
         //TODO: This is where we call function to deal with integrating new tail (i.e initialize new tail volume)
         //downstream->init_new_tail(request->last_seq_num());
+        cout << "...About to update new node using ->Restore() with seq num " << request->last_seq_num() << endl;
         server::RestoreRequest restoreRequest;
         std::vector<std::pair<long, long>> restoreOffsets = Storage::get_modified_offsets(request->last_seq_num());
+//        sort(restoreOffsets.begin(), restoreOffsets.end());
         for (auto i : restoreOffsets) {
+            cout << "......Sending sequence number " << i.second << endl;
             server::RestoreEntry *restoreEntry = restoreRequest.add_entry();
             restoreEntry->set_offset(i.first);
             restoreEntry->set_seqnum(i.second);
@@ -86,11 +89,13 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         cout << "...initialize new tail - last seq # was " << request->last_seq_num() << endl;
         
         //TODO: Forward replay log
+        cout << "...About to update new node using ->UpdateReplayLog()" << endl;
         grpc::ClientContext replayContext;
         server::UpdateReplayLogRequest replayRequest;
         Tables::replayLog.getRelayLogContent(replayRequest);
         google::protobuf::Empty replayReply;
         downstream->stub->UpdateReplayLog(&replayContext, replayRequest, &replayReply);
+        cout << "...Done updating log" << endl;
     }
 
     // need to switch state prior to launcing tail.

@@ -71,6 +71,7 @@ grpc::Status master::NodeListenerImpl::Register (
      */
     if (!master::nodeList.empty()){
         // set request params for current tail
+
         server::ChangeModeRequest cm_request;
         server::ServerIp * next_addr = cm_request.mutable_next_addr();
         next_addr->set_ip(newNode->ip);
@@ -139,5 +140,6 @@ grpc::Status master::NodeListenerImpl::Register (
     master::print_nodes();
 
     master::reg_mtx.unlock();
+    cout << "...returning with status ok" << endl;
     return grpc::Status::OK;
 }

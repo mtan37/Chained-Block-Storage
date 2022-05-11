@@ -136,7 +136,7 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target client_test basic_write_test smart_write)
+foreach(_target client_test basic_write_test smart_write write_no_ack)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
     ./src/headers/master.h
