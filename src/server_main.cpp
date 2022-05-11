@@ -10,6 +10,7 @@
 #include "storage.hpp" 
 #include "master.h"
 #include "server.h"
+#include "helper.h"
 
 #include <thread>
 
@@ -390,7 +391,12 @@ int main(int argc, char *argv[]) {
     std::thread listener_service_thread(server::run_service, listener.get(), "listen to master and other nodes");
 
     // Register node with master
+    timespec start, end;
+    set_time(&start);
     if (register_server() < 0) return -1;
+    set_time(&end);
+    double elapsed = difftimespec_ns(start, end);
+    cout << "Registration took " << elapsed/1000000 << " ms." << endl;
 
     // Close server
     listener_service_thread.join();

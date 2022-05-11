@@ -5,7 +5,7 @@
 #include <chrono>
 #include <thread>
 
-int NUM_RUNS = 100;
+int NUM_RUNS = 50;
 
 int main(int argc, char *argv[]) {
     Client c = Client("localhost", "localhost");
@@ -31,14 +31,17 @@ int main(int argc, char *argv[]) {
 
         c.write(data, tm, i*Constants::BLOCK_SIZE);
 
-        cout << "Client test: Writing data to server at offset " << i*Constants::BLOCK_SIZE <<  endl;
-        cout << "...The write data is size :" << sizeof(data.buff)/sizeof(data.buff[0]) << ":" << endl;
+//        cout << "Client test: Writing data to server at offset " << i*Constants::BLOCK_SIZE <<  endl;
+        cout << "...The write data is size :" << sizeof(data.buff)/sizeof(data.buff[0])
+            << ": and comprised of '" << data.buff[0] << "'" << endl;
         //    cout << "Client test: generated timestamp " << tm.seconds() << ":" << tm.nanos() << endl;
 
 //        sleep(2);
+        int start = true;
         while (c.ackWrite(tm) < 0) {
-            std::cout << "...trying to ack write" << endl;
-            sleep(1);
+//            std::cout << "...trying to ack write" << endl;
+            if (!start) sleep(1);
+            start = false;
         }
 
         cout << "...Write committed" << endl;
