@@ -113,7 +113,7 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
         cout << "...Running restore" << endl;
         for (int i = 0; i < request->entry_size(); i++) {
             server::RestoreEntry entry = request->entry(i);
-            cout << "...(" << i << ") restoring seq # "  << entry.seqnum() << endl;
+//            cout << "...(" << i << ") restoring seq # "  << entry.seqnum() << endl;
             Storage::write(entry.data(), entry.offset(), entry.seqnum());
             Tables::writeSeq = entry.seqnum();
             Storage::commit(entry.seqnum(), entry.offset());
