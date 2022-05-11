@@ -10,6 +10,7 @@
 #include "storage.hpp" 
 #include "master.h"
 #include "server.h"
+#include "helper.h"
 
 #include <thread>
 
@@ -32,6 +33,7 @@ namespace server {
     server::Node *downstream;
     server::Node *upstream;
     std::mutex changemode_mtx;
+    std::mutex restore_mtx;
     State state;
     std::unique_ptr<grpc::Server> headService;
     std::unique_ptr<grpc::Server> tailService;
@@ -134,7 +136,7 @@ int register_server() {
     serverIP->set_port(my_port);
     // add last seq # to request
     request.set_last_seq_num(Tables::commitSeq);
-//    cout << "My last sequence number was " << request.last_seq_num() << endl;
+    cout << "My last sequence number was " << request.last_seq_num() << endl;
     // Create container for reply
     master::RegisterReply reply;
     // Register with master server
@@ -146,6 +148,7 @@ int register_server() {
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
         std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
         grpc::ClientContext context;
+        cout << "Preparing to register" << endl;
         grpc::Status status = master_stub->Register(&context, request, &reply);
         // Check return status on register call
         // Once we get return we are ready to go.  Have been brought up to speed by previous
@@ -159,6 +162,7 @@ int register_server() {
         sleep(backoff);
         backoff += 1;
     }
+    cout << "...Finished registering" << endl;
     // Set state, and if present build communication with old tail
     if (reply.has_prev_addr()) {
         master::ServerIp prev_addy_ip = reply.prev_addr();
@@ -220,7 +224,9 @@ void relay_write_background() {
 
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
-            Storage::write(pending_entry.data, pending_entry.volumeOffset, pending_entry.seqNum);
+            string m_data(pending_entry.data, 0, Constants::BLOCK_SIZE);
+            Storage::write(m_data, pending_entry.volumeOffset, pending_entry.seqNum);
+
             Tables::writeSeq++;
             
             //Add to sent list
@@ -357,7 +363,12 @@ int main(int argc, char *argv[]) {
     std::thread listener_service_thread(server::run_service, listener.get(), "listen to master and other nodes");
 
     // Register node with master
+    timespec start, end;
+    set_time(&start);
     if (register_server() < 0) return -1;
+    set_time(&end);
+    double elapsed = difftimespec_ns(start, end);
+    cout << "Registration took " << elapsed/1000000 << " ms." << endl;
 
     // Close server
     listener_service_thread.join();

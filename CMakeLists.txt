@@ -85,6 +85,7 @@ foreach(_target server)
     ./src/interfaceImpl/serverService/NodeListenerImpl.cpp
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     ./src/storage.cpp
+    ./src/helper.cpp
     )
 
     target_compile_features(${_target} PRIVATE cxx_std_17)
@@ -135,7 +136,7 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target client_test basic_write_test)
+foreach(_target client_test basic_write_test smart_write write_no_ack)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
     ./src/headers/master.h
@@ -149,6 +150,8 @@ foreach(_target client_test basic_write_test)
     server_grpc_proto master_grpc_proto
   )
 endforeach()
+
+
 
 # compile benchmarks
 foreach(_target storage_benchmark throughput_benchmark)
@@ -168,3 +171,5 @@ foreach(_target storage_benchmark throughput_benchmark)
     server_grpc_proto master_grpc_proto
   )
 endforeach()
+
+
