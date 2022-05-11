@@ -7,34 +7,98 @@
 #include "storage.hpp"
 #include "timing.h"
 
+#define SEQ_VOL "sequential.volume"
+#define RAN_VOL "random.voluume"
+#define USEQ_VOL "usequential.volume"
+#define URAN_VOL "urandom.volume"
+
+#define TRIALS 1000
+
 std::vector<long> seq_order;
 std::vector<long> ran_order;
 
-unsigned long test_write(std::vector<long>& order, long diff) {
+unsigned long test_write(std::string volume, std::vector<long>& order, long diff) {
   unsigned long nanos;
-  Storage::init_volume("test.volume");
+  Storage::init_volume(volume);
   char data[4096];
   memset(data, 1, sizeof(data));
   int offset = -1;
-  DO_TRIALS(++offset;, Storage::write(data, order[offset]*4096 + diff, offset+1);, 100000, nanos);
-  Storage::close_volume();
+  DO_TRIALS(++offset;, Storage::write(data, order[offset]*4096 + diff, offset+1);, TRIALS, nanos);
   return nanos;
 }
 
 void sequential_write() {
-  print_result("Sequential write", test_write(seq_order, 0));
+  print_result("Sequential write", test_write(SEQ_VOL, seq_order, 0));
 }
 
 void random_write() {
-  print_result("Random write", test_write(ran_order, 0));
+  print_result("Random write", test_write(RAN_VOL, ran_order, 0));
 }
 
 void unaligned_sequential_write() {
-  print_result("Unalligned sequential write", test_write(seq_order, 2048));
+  print_result("Unalligned sequential write", test_write(USEQ_VOL, seq_order, 2048));
 }
 
 void unaligned_random_write() {
-  print_result("Unalligned random write", test_write(ran_order, 2048));
+  print_result("Unalligned random write", test_write(URAN_VOL, ran_order, 2048));
+}
+
+unsigned long test_commit(std::string volume, std::vector<long>& order, long diff) {
+  unsigned long nanos;
+  char data[4096];
+  memset(data, 1, sizeof(data));
+  int offset = -1;
+  offset = -1;
+  DO_TRIALS({
+    ++offset;
+  }, {
+    Storage::commit(offset+1, order[offset]*4096 + diff);
+  }, TRIALS, nanos);
+  return nanos;
+}
+
+void sequential_commit() {
+  print_result("Sequential commit", test_commit(SEQ_VOL, seq_order, 0));
+}
+
+void random_commit() {
+  print_result("Random commit", test_commit(RAN_VOL, ran_order, 0));
+}
+
+void unaligned_sequential_commit() {
+  print_result("Unalligned sequential commit", test_commit(USEQ_VOL, seq_order, 2048));
+}
+
+void unaligned_random_commit() {
+  print_result("Unalligned random commit", test_commit(URAN_VOL, ran_order, 2048));
+}
+
+unsigned long test_read(std::vector<long>& order, long diff) {
+  unsigned long nanos;
+  char data[4096];
+  memset(data, 1, sizeof(data));
+  int offset = -1;
+  DO_TRIALS(++offset;, {
+    Storage::read(data, order[offset]*4096 + diff); 
+  }, TRIALS, nanos);
+  Storage::close_volume();
+  return nanos;
+}
+
+void sequential_read() {
+  print_result("Sequential read", test_read(seq_order, 0));
+}
+
+void random_read() {
+  print_result("Random read", test_read(ran_order, 0));
+}
+
+void unaligned_sequential_read() {
+  print_result("Unalgined sequential read", test_read(seq_order, 2048));
+}
+
+void unaligned_random_read() {
+  print_result("Unalgined random read", test_read(seq_order, 2048));
 }
 
 unsigned long test_write_commit(std::vector<long>& order, long diff) {
@@ -46,7 +110,7 @@ unsigned long test_write_commit(std::vector<long>& order, long diff) {
   DO_TRIALS(++offset;, {
     Storage::write(data, order[offset]*4096 + diff, offset+1); 
     Storage::commit(offset+1, order[offset]*4096 + diff);
-  }, 10000, nanos);
+  }, TRIALS, nanos);
   Storage::close_volume();
   return nanos;
 }
@@ -67,42 +131,10 @@ void unaligned_random_write_commit() {
   print_result("Unaligned random write-commit", test_write_commit(ran_order, 2048));
 }
 
-void sequential_read() {
-  unsigned long nanos;
-  Storage::open_volume("sequential.volume");
-  char data[4096];
-  memset(data, 1, sizeof(data));
-  int offset = -1;
-  DO_TRIALS(++offset;, {
-    Storage::read(data, offset); 
-  }, 10000, nanos);
-  print_result("Sequential read", nanos);
-  Storage::close_volume();
-}
-
-void sequential_commit() {
-  unsigned long nanos;
-  Storage::init_volume("sequential.volume");
-  char data[4096];
-  memset(data, 1, sizeof(data));
-  int offset = -1;
-  while (++offset < 10000) { 
-    Storage::write(data, offset, offset+1); 
-  }
-  offset = -1;
-  DO_TRIALS({
-    ++offset;
-  }, {
-    Storage::commit(offset+1, offset);
-  }, 10000, nanos);
-  print_result("Sequential commit", nanos);
-  Storage::close_volume();
-}
-
 void empty_checksum() {
   unsigned long nanos;
   Storage::init_volume("empty.volume");
-  DO_TRIALS(, Storage::checksum();, 10, nanos);
+  DO_TRIALS(, Storage::checksum();, 100, nanos);
   print_result("Empty checksum", nanos);
   Storage::close_volume();
 }
@@ -110,56 +142,10 @@ void empty_checksum() {
 void init_volume() {
   unsigned long nanos;
   Storage::init_volume("empty.volume");
-  DO_TRIALS(Storage::close_volume();, Storage::init_volume("empty.volume");, 10, nanos);
+  DO_TRIALS(Storage::close_volume();, Storage::init_volume("empty.volume");, 100, nanos);
   print_result("Init volume", nanos);
   Storage::close_volume();
 }
-/*
-void random_write_commit() {
-  unsigned long nanos;
-  Storage::init_volume("random.volume");
-  char data[4096];
-  memset(data, 1, sizeof(data));
-  int offset = -1;
-  DO_TRIALS(++offset;, {
-    Storage::write(data, order[offset]*4096, offset+1); 
-    Storage::commit(offset+1, order[offset]*4096);
-  }, 10000, nanos);
-  print_result("Random write-commit", nanos);
-  Storage::close_volume();
-}
-
-void random_read() {
-  unsigned long nanos;
-  Storage::open_volume("random.volume");
-  char data[4096];
-  memset(data, 1, sizeof(data));
-  int offset = -1;
-  DO_TRIALS(++offset;, {
-    Storage::read(data, order[offset]*4096); 
-  }, 10000, nanos);
-  print_result("Random read", nanos);
-  Storage::close_volume();
-}
-
-void random_commit() {
-  unsigned long nanos;
-  Storage::init_volume("random.volume");
-  char data[4096];
-  memset(data, 1, sizeof(data));
-  int offset = -1;
-  while (++offset < 10000) { 
-    Storage::write(data, order[offset]*4096, offset+1); 
-  }
-  offset = -1;
-  DO_TRIALS({
-    ++offset;
-  }, {
-    Storage::commit(offset+1, order[offset]*4096);
-  }, 10000, nanos);
-  print_result("Random commit", nanos);
-  Storage::close_volume();
-}*/
 
 int main(int argc, char** argv) {
   std::cout << "Using storage system: " << Storage::get_storage_type() << std::endl;
@@ -169,24 +155,24 @@ int main(int argc, char** argv) {
   }
   std::shuffle(ran_order.begin(), ran_order.end(), std::default_random_engine());
 
-  //empty_checksum();
-  //init_volume();
+  empty_checksum();
+  init_volume();
 
-  //sequential_write();
-  //random_write();
-  //unaligned_sequential_write();
-  //unaligned_random_write();
-
-  //sequential_write_commit();
-  random_write_commit();
-  unaligned_sequential_write_commit();
-  //unaligned_random_write_commit();
-/*  sequential_write_commit();
+  sequential_write();
   sequential_commit();
   sequential_read();
-  
   random_write();
-  random_write_commit();
   random_commit();
-  random_read();*/
+  random_read();
+  unaligned_sequential_write();
+  unaligned_sequential_commit();
+  unaligned_sequential_read();
+  unaligned_random_write();
+  unaligned_random_commit();
+  unaligned_random_read();
+
+  sequential_write_commit();
+  random_write_commit();
+  unaligned_sequential_write_commit();
+  unaligned_random_write_commit();
 }
