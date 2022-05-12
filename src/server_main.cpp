@@ -148,6 +148,7 @@ int register_server() {
     timespec start, end;
     timespec t1;
     set_time(&start);
+    cout << "Start Reg: " << (uint64_t) get_time_ns(&t1) << endl;
     while (true){
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
         std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
@@ -166,6 +167,7 @@ int register_server() {
         sleep(backoff);
         backoff += 1;
     }
+    cout << "End Reg: " << (uint64_t) get_time_ns(&t1) << endl;
     set_time(&end);
     double elapsed = difftimespec_ns(start, end);
     cout << "Master Reg Call took " << elapsed/1000000 << " ms." << endl;

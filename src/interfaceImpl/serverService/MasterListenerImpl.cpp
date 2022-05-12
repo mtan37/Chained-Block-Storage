@@ -41,11 +41,14 @@ grpc::Status server::MasterListenerImpl::HeartBeat (grpc::ServerContext *context
 grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *context,
     const server::ChangeModeRequest *request,
     server::ChangeModeReply *reply) {
+
     // Need to ensure we are not trying to register new node and change tail state at same time
     // TODO: Actually, is this an issue?  ChangeNode would be result of upstream failure
     // Would that interfere with initializing new server? Only upstream IP & stub would be changed
     // We likely will not be using TRANSITION anyways, so tail will stay tail or beceom SINGLE
     // which should be ok?
+    timespec t1;
+    cout << "Change Mode Start: " << (uint64_t) get_time_ns(&t1) << endl;
     changemode_mtx.lock();
     server::State old_state = server::state;
     server::State new_state = static_cast<server::State>(request->new_state());
@@ -70,6 +73,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         && (old_state == server::TAIL || old_state == server::SINGLE)){
         //TODO: This is where we call function to deal with integrating new tail (i.e initialize new tail volume)
         //downstream->init_new_tail(request->last_seq_num());
+        cout << "Restore Start: " << (uint64_t) get_time_ns(&t1) << endl;
         cout << "...About to update new node using ->Restore() with seq num " << request->last_seq_num() << endl;
         server::RestoreRequest restoreRequest;
         std::vector<std::pair<long, long>> restoreOffsets = Storage::get_modified_offsets(request->last_seq_num());
@@ -97,6 +101,7 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
         downstream->stub->UpdateReplayLog(&replayContext, replayRequest, &replayReply);
         cout << "...Done updating log" << endl;
     }
+    cout << "Restore End: " << (uint64_t) get_time_ns(&t1) << endl;
 
     // need to switch state prior to launcing tail.
     server::state = new_state;
@@ -210,5 +215,6 @@ grpc::Status server::MasterListenerImpl::ChangeMode (grpc::ServerContext *contex
     if (server::downstream)
     cout << "...New downstream IP = " << server::downstream->ip << ":" << server::downstream->port << endl;
     changemode_mtx.unlock();
+    cout << "Change Mode End: " << (uint64_t) get_time_ns(&t1) << endl;
     return grpc::Status::OK;
 }
