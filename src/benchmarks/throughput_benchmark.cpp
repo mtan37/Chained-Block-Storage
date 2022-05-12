@@ -23,15 +23,15 @@ int main(int argc, char *argv[]) {
     int write_count = atoi(argv[1]);
     bool is_aligned = true;
     if (argc > 2 && std::string(argv[2]).compare("is_unaligned") == 0) {
-        cout << "doing unaligned write" << endl;
+        //cout << "doing unaligned write" << endl;
         is_aligned = false;
     }
     
     pid_t pid = getpid();
-    cout << "Howdy~ I am process " << std::to_string(pid) << ". ";
-    cout << "I do " << write_count << "";
-    if (is_aligned) cout << " aligned write~" << endl;
-    else cout << " unaligned write~" << endl;
+    //cout << "Howdy~ I am process " << std::to_string(pid) << ". ";
+    //cout << "I do " << write_count << "";
+    //if (is_aligned) cout << " aligned write~" << endl;
+    //else cout << " unaligned write~" << endl;
     Client c = Client("c220g2-010624.wisc.cloudlab.us", "marvintan.xyz");
     int init_offset = Constants::BLOCK_SIZE * (rand() % 100);
     if (!is_aligned) init_offset = Constants::BLOCK_SIZE - (rand() % 4000 + 1);
