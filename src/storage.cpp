@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 #include <queue>
 #include <sstream>
 #include <string>
@@ -53,6 +54,8 @@ static std::queue<int64_t> free_blocks;
 static int fd;
 
 static int num_total_blocks;
+
+static std::mutex storage_mutex;
 
 static int64_t get_first_level(int64_t offset) {
   offset /= NUM_ENTRIES;
@@ -150,6 +153,8 @@ static void write_metadata(uncommitted_write& uw,
                            int64_t sequence_number,
                            int64_t file_offset[2],
                            int64_t volume_offset) {
+  storage_mutex.lock();
+
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   int num_file_blocks = remainder ? 2 : 1; 
@@ -167,7 +172,7 @@ static void write_metadata(uncommitted_write& uw,
     offsets[i][1] = get_second_level(v_offsets[i]);
     offsets[i][2] = get_third_level(v_offsets[i]);
     offsets[i][3] = get_last_level(v_offsets[i]);
-    if (sequence_number - 1 > first_block.last_committed) {
+    if (uncommitted_writes[sequence_number-1] != nullptr) {
       old_block_nums[i][0] = uncommitted_writes[sequence_number-1]->new_metadata_offset[i];
     }
     else {
@@ -186,6 +191,8 @@ static void write_metadata(uncommitted_write& uw,
       }
     }
   }
+
+  storage_mutex.unlock();
 
   for (int i = 0; i < 4; ++i) {
     if (old_block_nums[0][i] != 0) {
@@ -516,6 +523,8 @@ void commit(long sequence_number, long volume_offset) {
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
 
+  storage_mutex.lock();
+
   int64_t remainder = volume_offset % BLOCK_SIZE;
   volume_offset -= remainder;
   first_block.first_level_blocks[get_first_level(volume_offset)] = uw->new_metadata_offset[0];
@@ -527,6 +536,8 @@ void commit(long sequence_number, long volume_offset) {
   }
 
   first_block.last_committed = sequence_number;
+
+  storage_mutex.unlock();
 
   // fsync twice to make sure that the actual data is persistent before modifying the metadata
   if (fdatasync(fd) == -1) {

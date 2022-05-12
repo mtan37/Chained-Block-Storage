@@ -23,6 +23,12 @@ namespace server {
     extern State state;
     extern std::unique_ptr<grpc::Server> tailService;
     extern std::string my_ip;
+
+    // variable related to throughput benchmark
+    extern std::mutex benchmark_time_recorder_mtx;
+    extern bool does_record;
+    extern std::string record_file_name;
+
     // methods
     extern string get_state(server::State state);
     extern void launch_tail();

@@ -10,7 +10,7 @@
 #include "storage.hpp" 
 #include "master.h"
 #include "server.h"
-#include "helper.h"
+#include "helper.hpp"
 
 #include <thread>
 
@@ -33,6 +33,9 @@ namespace server {
     server::Node *downstream;
     server::Node *upstream;
     std::mutex changemode_mtx;
+    std::mutex benchmark_time_recorder_mtx;
+    bool does_record = false;
+    std::string record_file_name;
     std::mutex restore_mtx;
     State state;
     std::unique_ptr<grpc::Server> headService;
@@ -293,6 +296,13 @@ void relay_write_ack_background() {
                 if (status.ok()) break;
                 server::build_node_stub(server::upstream);
             }
+            
+            // record timestamp
+            if (server::does_record && !server::record_file_name.empty()) {
+                std::cout << "record flag is on. Record message process time on tail" << std::endl;
+                record_timestamp_to_file(server::record_file_name);
+            }
+
         }
         catch (...) {}
     }
@@ -301,9 +311,10 @@ void relay_write_ack_background() {
 
 void print_usage(){
     std::cout << "Usage: prog -master <master IP addy> (required)>\n" <<
-                              "-port <my port>"
-                              "-clean (initialize volume)"
-                              "-v <volume name>";
+                              "-port <my port>\n"
+                              "-clean (initialize volume)\n"
+                              "-v <volume name>\n"
+                              "-record_time (record timestamp on tail for benchmark)\n";
 }
 /**
  Parse out arguments sent into program
@@ -323,7 +334,10 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-clean") {
             start_clean = true;
         } else if (argx == "-v") {
-            def_volume_name = std::string(argv[++arg]);            
+            def_volume_name = std::string(argv[++arg]); 
+        } else if (argx == "-record_time") {
+            server::does_record = true;
+            server::record_file_name = std::string(argv[++arg]); 
         } else {
             print_usage();
             return -1;
@@ -368,7 +382,6 @@ int main(int argc, char *argv[]) {
     if (register_server() < 0) return -1;
     set_time(&end);
     double elapsed = difftimespec_ns(start, end);
-    cout << "Registration took " << elapsed/1000000 << " ms." << endl;
 
     // Close server
     listener_service_thread.join();

@@ -28,7 +28,10 @@ namespace Tables {
    }
 
    PendingQueue::pendingQueueEntry PendingQueue::peekEntry() {
-        return this->queue.top();
+        queue_mutex.lock();
+        pendingQueueEntry topEntry = this->queue.top();
+        queue_mutex.unlock();
+        return topEntry;
    }
 
    int PendingQueue::getQueueSize() {
