@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     cout << "I do " << write_count << "";
     if (is_aligned) cout << " aligned write~" << endl;
     else cout << " unaligned write~" << endl;
-    Client c = Client("localhost", "localhost");
+    Client c = Client("c220g2-010624.wisc.cloudlab.us", "marvintan.xyz");
     int init_offset = Constants::BLOCK_SIZE * (rand() % 100);
     if (!is_aligned) init_offset = Constants::BLOCK_SIZE - (rand() % 4000 + 1);
 
