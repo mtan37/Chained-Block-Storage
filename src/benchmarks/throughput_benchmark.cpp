@@ -20,24 +20,24 @@ int main(int argc, char *argv[]) {
         usage(argv[0]);
         return 1;
     }
-    cout << "Howdy~" << endl;
     int write_count = atoi(argv[1]);
-    cout << "Howdy2~" << endl;
     bool is_aligned = true;
-    if (argc > 2 && std::string(argv[2]).compare("is_unaligned")) {
+    if (argc > 2 && std::string(argv[2]).compare("is_unaligned") == 0) {
+        //cout << "doing unaligned write" << endl;
         is_aligned = false;
     }
-    cout << "Howdy3~" << endl;
     
     pid_t pid = getpid();
-    cout << "Howdy~ I am process " << std::to_string(pid) << endl;
-    Client c = Client("localhost", "localhost");
+    //cout << "Howdy~ I am process " << std::to_string(pid) << ". ";
+    //cout << "I do " << write_count << "";
+    //if (is_aligned) cout << " aligned write~" << endl;
+    //else cout << " unaligned write~" << endl;
+    Client c = Client("c220g2-010624.wisc.cloudlab.us", "marvintan.xyz");
     int init_offset = Constants::BLOCK_SIZE * (rand() % 100);
     if (!is_aligned) init_offset = Constants::BLOCK_SIZE - (rand() % 4000 + 1);
 
     const long MAX_OFFSET = init_offset  + 1024 * 1024 *  (long)Constants::BLOCK_SIZE;
 
-cout << "Howdy4~" << endl;
     // write the same data to increase speed
     Client::DataBlock data;
     std::string write_content = "yesyes";

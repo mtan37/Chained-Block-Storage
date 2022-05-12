@@ -10,7 +10,7 @@
 #include "storage.hpp" 
 #include "master.h"
 #include "server.h"
-#include "helper.h"
+#include "helper.hpp"
 
 #include <thread>
 
@@ -33,6 +33,9 @@ namespace server {
     server::Node *downstream;
     server::Node *upstream;
     std::mutex changemode_mtx;
+    std::mutex benchmark_time_recorder_mtx;
+    bool does_record = false;
+    std::string record_file_name;
     std::mutex restore_mtx;
     State state;
     std::unique_ptr<grpc::Server> headService;
@@ -76,7 +79,7 @@ namespace server {
      * failure scenarios, and must be shutdown appropriately when no longer tail.
      */
     void launch_tail(){
-        std::string my_address(server::my_ip + ":" + to_string(my_port+Constants::tail_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port+Constants::TAIL_PORT_OFFSET));
         server::TailServiceImpl *tailServiceImpl = new server::TailServiceImpl();
         grpc::ServerBuilder tailBuilder;
         tailBuilder.AddListeningPort(my_address, grpc::InsecureServerCredentials());
@@ -97,7 +100,7 @@ namespace server {
      * Launch head.  Head never reverts, so we can detach head service thread.
      */
     void launch_head(){
-        std::string my_address(server::my_ip + ":" + to_string(my_port + Constants::head_port));
+        std::string my_address(server::my_ip + ":" + to_string(my_port + Constants::HEAD_PORT_OFFSET));
         cout << "About to launch head at " << my_address << endl;
         server::HeadServiceImpl *headServiceImpl = new server::HeadServiceImpl();
         grpc::ServerBuilder headBuilder;
@@ -192,16 +195,9 @@ int register_server() {
 void relay_write_background() {
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
-            cout << "(RWB) WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is "
-                << Tables::pendingQueue.peekEntry().seqNum << endl;
             while (Tables::pendingQueue.peekEntry().seqNum != Tables::writeSeq + 1) {}
             Tables::PendingQueue::pendingQueueEntry pending_entry = Tables::pendingQueue.popEntry();
-            cout << "...(RWB) Pulling entry " << pending_entry.seqNum << " off the pending list ("
-                    << pending_entry.reqId.ip() << ":"
-                    << pending_entry.reqId.pid() << ":"
-                    << pending_entry.reqId.timestamp().seconds() << ")" << endl;
             while (server::state != server::TAIL && server::state != server::SINGLE) { 
-                cout << "...(RWB) Relaying write downstream" << endl;
                 grpc::ClientContext context;
                 server::RelayWriteRequest request;
 
@@ -224,22 +220,16 @@ void relay_write_background() {
 
 
                 grpc::Status status = stub->RelayWrite(&context, request, &RelayWriteReply);
-                cout << "......(RWB) Forward attempt to " << server::downstream->ip << ":" << server::downstream->port << ": " << status.error_code() << endl;
-                cout << "......(RWB) ReqID was " << pending_entry.reqId.ip() << ":" << pending_entry.reqId.pid() << ":" << pending_entry.reqId.timestamp().seconds() << endl;
-                cout << "......(RWB) Checking request ReqID: " << request.clientrequestid().timestamp().seconds() << endl;
                 if (status.ok()) break;
                 sleep(1);
                 
             } //End forwarding if non-tail
 
-            cout << "...(RWB) Background write thread checkpoint 1 (writing to volume)" << endl;
-            cout << "...(RWB) WRITING Seq # " << pending_entry.seqNum << " - offset (" << pending_entry.volumeOffset   << ")" << endl;
-            cout << "...(RWB) WRITING :" << pending_entry.data.length() << ":" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
             string m_data(pending_entry.data, 0, Constants::BLOCK_SIZE);
             Storage::write(m_data, pending_entry.volumeOffset, pending_entry.seqNum);
-            cout << "...(RWB) Background write thread checkpoint 2 (written to volume)" << endl;
+
             Tables::writeSeq++;
             
             //Add to sent list
@@ -268,8 +258,6 @@ void relay_write_background() {
             sent_entry.volumeOffset = pending_entry.volumeOffset;
             sent_entry.reqId = pending_entry.reqId;
             Tables::sentList.pushEntry(pending_entry.seqNum, sent_entry);
-
-            cout << "(RWB) Wrote entry, added to sentList" << endl;
         }
     }
 }
@@ -279,7 +267,6 @@ void relay_write_background() {
  * upstream if tail
  */
 void relay_write_ack_background() {
-    cout << "(RWAB) STARTING RELAY WRITE ACK BACKGROUND" << endl;
     while (server::state == server::TAIL || server::state == server::SINGLE) { 
         Tables::SentList::sentListEntry sentListEntry;
         //Remove from sent list
@@ -287,19 +274,10 @@ void relay_write_ack_background() {
             long seq = Tables::commitSeq + 1;
             sentListEntry = Tables::sentList.popEntry((int) seq);
             //Will throw exception here if seq is not sequentially next
-            cout << "...(RWAB)Printing replay log" << endl;
-            cout << "...(RWAB) Pulling entry " << seq << " off the sent list" << endl;
-            cout << "...(RWAB) committing to storage" << endl;
             Storage::commit(seq, sentListEntry.volumeOffset);
-            cout << "...(RWAB) committing log entry on replay log" << endl;
             int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
                 
             Tables::commitSeq++;
-            cout << "...(RWAB) Committed entry " << seq << " with reqId "
-                << sentListEntry.reqId.ip() << ":"
-                << sentListEntry.reqId.pid() << ":"
-                << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
-            cout << "...(RWAB) Printing replay log again" << endl;
             
             while (server::state == server::TAIL) {    
                 //Relay to previous nodes
@@ -315,13 +293,16 @@ void relay_write_ack_background() {
                 timestamp->set_nanos(sentListEntry.reqId.timestamp().nanos());
 
                 grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, request, &RelayWriteAckReply);
-                cout << "...(RWAB) Forward attempt to " << server::upstream->ip << ":"
-                    << server::upstream->port << " returned: " << status.error_code() << endl;
                 if (status.ok()) break;
                 server::build_node_stub(server::upstream);
-//                sleep(1);
             }
-            cout << "...(RWAB) Finished processing next entry" << endl;
+            
+            // record timestamp
+            if (server::does_record && !server::record_file_name.empty()) {
+                record_timestamp_to_file(server::record_file_name);
+                std::cout << "record request with seq id" << (long)seq << std::endl;
+            }
+
         }
         catch (...) {}
     }
@@ -330,9 +311,11 @@ void relay_write_ack_background() {
 
 void print_usage(){
     std::cout << "Usage: prog -master <master IP addy> (required)>\n" <<
-                              "-port <my port>"
-                              "-clean (initialize volume)"
-                              "-v <volume name>";
+                              "-port <my port>\n"
+                              "-ip <server's ip>\n"
+                              "-clean (initialize volume)\n"
+                              "-v <volume name>\n"
+                              "-record_time (record timestamp on tail for benchmark)\n";
 }
 /**
  Parse out arguments sent into program
@@ -352,7 +335,10 @@ int parse_args(int argc, char** argv){
         } else if (argx == "-clean") {
             start_clean = true;
         } else if (argx == "-v") {
-            def_volume_name = std::string(argv[++arg]);            
+            def_volume_name = std::string(argv[++arg]); 
+        } else if (argx == "-record_time") {
+            server::does_record = true;
+            server::record_file_name = std::string(argv[++arg]); 
         } else {
             print_usage();
             return -1;
@@ -397,7 +383,6 @@ int main(int argc, char *argv[]) {
     if (register_server() < 0) return -1;
     set_time(&end);
     double elapsed = difftimespec_ns(start, end);
-    cout << "Registration took " << elapsed/1000000 << " ms." << endl;
 
     // Close server
     listener_service_thread.join();
