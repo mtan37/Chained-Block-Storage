@@ -48,8 +48,13 @@ class Client {
             google::protobuf::Timestamp &timestamp,
             PendingWriteEntry &entry);
 
+        // peek the top of the pending write list
+        void peekPendingWrite(
+            google::protobuf::Timestamp &timestamp,
+            PendingWriteEntry &entry);
+
         // resend the top pending write to server
-        // return the timestamp of the request that were retired
+        // return the timestamp of the request that were retried
         void retryTopPendingWrite(google::protobuf::Timestamp &timestamp);
 
         // run checksum through chain
