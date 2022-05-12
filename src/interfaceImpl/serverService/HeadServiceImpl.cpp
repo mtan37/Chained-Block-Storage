@@ -66,7 +66,7 @@ grpc::Status server::HeadServiceImpl::ChecksumSystem (grpc::ServerContext *conte
     //first item, sent reply to true, will adjust as it comes back up chain
 //    reply->set_valid(true);
 
-    cout << "Running Checksum" << endl;
+
     server::ChecksumReply cs_request;
     cs_request.set_valid(true);
     if (cs_request.valid()) cout << "...initially valid" << endl;

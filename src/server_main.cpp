@@ -300,6 +300,7 @@ void relay_write_ack_background() {
             // record timestamp
             if (server::does_record && !server::record_file_name.empty()) {
                 record_timestamp_to_file(server::record_file_name);
+                std::cout << "record request with seq id" << (long)seq << std::endl;
             }
 
         }

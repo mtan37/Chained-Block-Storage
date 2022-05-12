@@ -26,16 +26,8 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
 //        entry.data = request->data();
         entry.data = m_data;
         entry.reqId = request->clientrequestid();
-
-        
-        cout << "...Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
         
         Tables::pendingQueue.pushEntry(entry);
-
-        cout << "...Finished Writing ("
-             << entry.reqId.ip() << ":"
-             << entry.reqId.pid() << ":"
-             << entry.reqId.timestamp().seconds() << ") to pending queue" <<  endl;
 
         return grpc::Status::OK;
 }
@@ -51,31 +43,23 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
 grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *context,
     const server::RelayWriteAckRequest *request,
     google::protobuf::Empty *reply) {
-        cout << "RelayWriteAck called" << endl;
         while (Tables::commitSeq + 1 != request->seqnum()) {}
         //Remove from sent list
         Tables::SentList::sentListEntry sentListEntry = Tables::sentList.popEntry((int) request->seqnum());
-        cout << "...committing to storage" << endl;
         Storage::commit(request->seqnum(), sentListEntry.volumeOffset);
-        cout << "...committing log entry on replay log" << endl;
         int result = Tables::replayLog.commitLogEntry(sentListEntry.reqId);
            
         Tables::commitSeq = (int) request->seqnum();
-        
-        cout << "...RelayWriteAck checkpoint 1" << endl;
-        
+                
         while (server::state != HEAD && server::state != SINGLE) {
             //Relay to previous nodes
             grpc::ClientContext relay_context;
             google::protobuf::Empty RelayWriteAckReply;
             
             grpc::Status status = server::upstream->stub->RelayWriteAck(&relay_context, *request, &RelayWriteAckReply);
-            cout << "...Forward attempt to " << server::upstream->ip << ":"
-                 << server::upstream->port << " returned: " << status.error_code() << endl;
             if (status.ok()) break;
             sleep(1);
         }
-        cout << "...RelayWriteAck checkpoint 2" << endl;
         return grpc::Status::OK;
 }
 
@@ -125,7 +109,6 @@ grpc::Status server::NodeListenerImpl::AckReplayLog (grpc::ServerContext *contex
         const server::AckReplayLogRequest *request,
         google::protobuf::Empty *reply) {
         int result = Tables::replayLog.ackLogEntry(request->clientrequestid());
-        cout<< "(URL) ackLogEntry result is " << result << endl;
         while (server::state != server::HEAD && server::state != server::SINGLE) {
             grpc::ClientContext relay_context;
             google::protobuf::Empty ackReplayLogReply;
@@ -138,13 +121,10 @@ grpc::Status server::NodeListenerImpl::AckReplayLog (grpc::ServerContext *contex
             timestamp->set_nanos(request->clientrequestid().timestamp().nanos());
 
             grpc::Status status = server::upstream->stub->AckReplayLog(&relay_context, ackReplayLogRequest, &ackReplayLogReply);
-            cout << "...(URL) ReplayLog forward attempt to " << server::upstream->ip << ":"
-                 << server::upstream->port << " returned: " << status.error_code() << endl;
             if (status.ok()) break;
             server::build_node_stub(server::upstream);
 
         }
-        cout << "(URL) exiting" << endl;
         return grpc::Status::OK;        
 }
 
