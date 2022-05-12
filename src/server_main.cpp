@@ -65,7 +65,8 @@ namespace server {
 
     // Run grpc service in a loop
     void run_service(grpc::Server *server, std::string serviceName) {
-        std::cout << "Starting to " << serviceName << "\n";
+        timespec t1;
+        std::cout << "Starting to " << serviceName << " at " << (uint64_t) get_time_ns(&t1) << endl;
         std::cout << "Checking head service " <<  headService.get() << endl;
         server->Wait();
         cout << "Will no longer " << serviceName << endl;
@@ -144,6 +145,9 @@ int register_server() {
     grpc::ChannelArguments args;
     args.SetInt(GRPC_ARG_MAX_RECONNECT_BACKOFF_MS, 1000);
     int backoff = 1;
+    timespec start, end;
+    timespec t1;
+    set_time(&start);
     while (true){
         std::shared_ptr<grpc::Channel> channel = grpc::CreateCustomChannel(master_address, grpc::InsecureChannelCredentials(), args);
         std::unique_ptr<master::NodeListener::Stub> master_stub = master::NodeListener::NewStub(channel);
@@ -162,6 +166,9 @@ int register_server() {
         sleep(backoff);
         backoff += 1;
     }
+    set_time(&end);
+    double elapsed = difftimespec_ns(start, end);
+    cout << "Master Reg Call took " << elapsed/1000000 << " ms." << endl;
     cout << "...Finished registering" << endl;
     // Set state, and if present build communication with old tail
     if (reply.has_prev_addr()) {
@@ -190,6 +197,8 @@ int register_server() {
 }
 
 void relay_write_background() {
+    timespec t1;
+    cout << "MARK R_W_B: " << (uint64_t) get_time_ns(&t1) << endl;
     while(true) {
         if ( Tables::pendingQueue.getQueueSize() ) {
             cout << "(RWB) WriteSeq is " << Tables::writeSeq << " and seqNum on pending list is "
@@ -279,7 +288,9 @@ void relay_write_background() {
  * upstream if tail
  */
 void relay_write_ack_background() {
+    timespec t1;
     cout << "(RWAB) STARTING RELAY WRITE ACK BACKGROUND" << endl;
+    cout << "MARK RWAB: " << (uint64_t) get_time_ns(&t1) << endl;
     while (server::state == server::TAIL || server::state == server::SINGLE) { 
         Tables::SentList::sentListEntry sentListEntry;
         //Remove from sent list
@@ -368,6 +379,8 @@ int parse_args(int argc, char** argv){
 
 
 int main(int argc, char *argv[]) {
+    timespec t1;
+    cout << "MARK 1: " << (uint64_t) get_time_ns(&t1) << endl;
     server::state = server::INITIALIZE;
     if (parse_args(argc, argv) < 0) return -1;
     if (start_clean) Storage::init_volume(def_volume_name);
@@ -378,6 +391,7 @@ int main(int argc, char *argv[]) {
     Tables::currentSeq = Tables::writeSeq + 1; // Next available seq number to assign to new write
 
     // Write relay and commit ack threads
+    cout << "MARK 2: " << (uint64_t) get_time_ns(&t1) << endl;
     std::thread relay_write_thread(relay_write_background);
 
     // Start listening to master - TODO: Probably doesn't need to launch as thread
@@ -394,7 +408,9 @@ int main(int argc, char *argv[]) {
     // Register node with master
     timespec start, end;
     set_time(&start);
+    cout << "MARK 3: " << (uint64_t) get_time_ns(&t1) << endl;
     if (register_server() < 0) return -1;
+    cout << "MARK 4: " << (uint64_t) get_time_ns(&t1) << endl;
     set_time(&end);
     double elapsed = difftimespec_ns(start, end);
     cout << "Registration took " << elapsed/1000000 << " ms." << endl;

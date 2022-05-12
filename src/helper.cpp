@@ -8,8 +8,8 @@ void set_time(struct timespec* ts) {
 
 double get_time_ns(struct timespec* ts){
     clock_gettime(CLOCK_MONOTONIC, ts);
-//    return (double) ts->tv_sec * (double)1000000000 + (double)ts->tv_nsec;
-    return (double)ts->tv_nsec;
+    return (double) ts->tv_sec * (double)1000000000 + (double)ts->tv_nsec;
+//    return (double)ts->tv_nsec;
 }
 double difftimespec_s(const struct timespec before, const struct timespec after) {
     return ((double)after.tv_sec - (double)before.tv_sec);
