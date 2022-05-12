@@ -108,6 +108,8 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
         const server::RestoreRequest *request,
         google::protobuf::Empty *reply) {
 
+        timespec t1;
+        cout << "Restore Start " << (uint64_t) get_time_ns(&t1) << endl;
         cout << "...Running restore" << endl;
         for (int i = 0; i < request->entry_size(); i++) {
             server::RestoreEntry entry = request->entry(i);
@@ -119,6 +121,7 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
             Tables::currentSeq = entry.seqnum() + 1;
         }
         cout << "...Finished restore" << endl;
+        cout << "Restore End " << (uint64_t) get_time_ns(&t1) << endl;
         return grpc::Status::OK;       
 }
 
