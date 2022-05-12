@@ -44,6 +44,7 @@ int main(int argc, char *argv[]) {
     DO_TRIALS(init_offset = (init_offset + Constants::BLOCK_SIZE ) % MAX_OFFSET;, {
         long offset = init_offset;
         c.write(data, tm, offset);
+        c.ackWrite(tm);
     }, write_count, nanos)
 
     print_result("Latency", nanos);
