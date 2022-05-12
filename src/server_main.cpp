@@ -312,6 +312,7 @@ void relay_write_ack_background() {
 void print_usage(){
     std::cout << "Usage: prog -master <master IP addy> (required)>\n" <<
                               "-port <my port>\n"
+                              "-ip <server's ip>\n"
                               "-clean (initialize volume)\n"
                               "-v <volume name>\n"
                               "-record_time (record timestamp on tail for benchmark)\n";
