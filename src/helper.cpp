@@ -27,7 +27,7 @@ double difftimespec_ns(const struct timespec before, const struct timespec after
 void record_timestamp_to_file(std::string file_name) {
     server::benchmark_time_recorder_mtx.lock();
     std::ofstream myfile;
-    myfile.open(file_name);
+    myfile.open(file_name, fstream::app);
 
     struct timeval tv;
     gettimeofday(&tv, NULL);

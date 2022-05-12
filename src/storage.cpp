@@ -153,8 +153,6 @@ static void write_metadata(uncommitted_write& uw,
                            int64_t sequence_number,
                            int64_t file_offset[2],
                            int64_t volume_offset) {
-  storage_mutex.lock();
-
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   int num_file_blocks = remainder ? 2 : 1; 
@@ -191,8 +189,6 @@ static void write_metadata(uncommitted_write& uw,
       }
     }
   }
-
-  storage_mutex.unlock();
 
   for (int i = 0; i < 4; ++i) {
     if (old_block_nums[0][i] != 0) {
@@ -371,6 +367,7 @@ void write(std::vector<char> buf, long volume_offset, long sequence_number) {
 }
 
 void write(const char* buf, long volume_offset, long sequence_number) {
+    storage_mutex.lock();
   int64_t remainder = volume_offset % BLOCK_SIZE;
 
   int64_t file_offset[2];
@@ -405,6 +402,7 @@ void write(const char* buf, long volume_offset, long sequence_number) {
   uncommitted_write* uw = new uncommitted_write;
   write_metadata(*uw, sequence_number, file_offset, volume_offset);
   uncommitted_writes[sequence_number] = uw;
+  storage_mutex.unlock();
 }
 
 void read(std::string& buf, long volume_offset) {
@@ -520,10 +518,9 @@ std::vector<std::pair<long, long>> get_modified_offsets(long seq_num) {
 }
 
 void commit(long sequence_number, long volume_offset) {
+    storage_mutex.lock();
   uncommitted_write* uw = uncommitted_writes[sequence_number];
   uncommitted_writes.erase(sequence_number);
-
-  storage_mutex.lock();
 
   int64_t remainder = volume_offset % BLOCK_SIZE;
   volume_offset -= remainder;
@@ -537,15 +534,15 @@ void commit(long sequence_number, long volume_offset) {
 
   first_block.last_committed = sequence_number;
 
-  storage_mutex.unlock();
-
   // fsync twice to make sure that the actual data is persistent before modifying the metadata
   if (fdatasync(fd) == -1) {
+      storage_mutex.unlock();
     perror("fsync");
     exit(1);
   }
   write_block(&first_block, 0);
   if (fdatasync(fd) == -1) {
+      storage_mutex.unlock();
     perror("fsync");
     exit(1);
   }
@@ -553,6 +550,7 @@ void commit(long sequence_number, long volume_offset) {
   for (int64_t num : uw->to_free) {
     free_blocks.push(num);
   }
+  storage_mutex.unlock();
 
   delete uw;
 }

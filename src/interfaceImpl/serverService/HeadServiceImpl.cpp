@@ -18,7 +18,6 @@ grpc::Status server::HeadServiceImpl::Write (
     const server::WriteRequest *request,
     server::WriteReply *reply) {
         
-        cout << "Client called Write - next seq # is " << Tables::currentSeq << endl;
         //Add to replay log
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
@@ -45,11 +44,6 @@ grpc::Status server::HeadServiceImpl::Write (
 //        cout << "Write checkpoint 4" << endl;
         
         reply->set_seqnum(seq);
-        
-        cout << "...Finished Writing to pending queue ("
-                << entry.reqId.ip() << ":"
-                << entry.reqId.pid() << ":"
-                << entry.reqId.timestamp().seconds() << ") to pending queue" <<  endl;
         
         return grpc::Status::OK;
 }

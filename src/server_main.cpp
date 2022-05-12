@@ -299,7 +299,6 @@ void relay_write_ack_background() {
             
             // record timestamp
             if (server::does_record && !server::record_file_name.empty()) {
-                std::cout << "record flag is on. Record message process time on tail" << std::endl;
                 record_timestamp_to_file(server::record_file_name);
             }
 
