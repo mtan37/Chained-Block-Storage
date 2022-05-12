@@ -163,6 +163,19 @@ void Client::popPendingWrite(
     pending_write_mutex.unlock();
 }
 
+void Client::peekPendingWrite(
+    google::protobuf::Timestamp &timestamp,
+    PendingWriteEntry &entry) {
+    pending_write_mutex.lock();
+    std::map<google::protobuf::Timestamp,
+            PendingWriteEntry, Tables::googleTimestampComparator>::iterator it = 
+            pending_writes.begin();
+    timestamp.set_seconds(it->first.seconds());
+    timestamp.set_nanos(it->first.nanos());
+    entry = it->second;
+    pending_write_mutex.unlock();
+}
+
 void Client::retryTopPendingWrite(google::protobuf::Timestamp &timestamp) {
 
     while (true) {
