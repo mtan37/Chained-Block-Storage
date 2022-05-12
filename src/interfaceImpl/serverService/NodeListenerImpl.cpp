@@ -3,6 +3,7 @@
 #include "tables.hpp"
 #include "storage.hpp"
 #include "constants.hpp"
+#include "helper.h"
 
 #include <grpc++/grpc++.h>
 

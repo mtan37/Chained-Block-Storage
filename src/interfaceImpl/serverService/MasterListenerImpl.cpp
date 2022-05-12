@@ -3,6 +3,8 @@
 #include "storage.hpp"
 #include <grpc++/grpc++.h>
 #include "tables.hpp"
+#include "helper.h"
+
 using namespace std;
 bool hb_two = false;
 /**
