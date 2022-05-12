@@ -35,7 +35,7 @@ void record_timestamp_to_file(std::string file_name) {
 
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    myfile << "" << tv.tv_sec << ":" << tv.tv_usec << std::endl;;
+    myfile << "" << tv.tv_sec << "." << tv.tv_usec << std::endl;;
     myfile.close();
     server::benchmark_time_recorder_mtx.unlock();
 }
