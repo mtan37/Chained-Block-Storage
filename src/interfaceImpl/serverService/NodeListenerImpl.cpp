@@ -2,6 +2,7 @@
 #include "server.h"
 #include "tables.hpp"
 #include "storage.hpp"
+#include "constants.hpp"
 
 #include <grpc++/grpc++.h>
 
@@ -19,15 +20,17 @@ grpc::Status server::NodeListenerImpl::RelayWrite (grpc::ServerContext *context,
         cout << "...Adding to replay log" << endl;
         int addResult = Tables::replayLog.addToLog(request->clientrequestid());
         cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
 
         if (addResult < 0) {return grpc::Status::OK;}// means entry already exist in log or has been acked
         
         Tables::PendingQueue::pendingQueueEntry entry;
         entry.seqNum = request->seqnum();
         entry.volumeOffset = request->offset();
-        entry.data = request->data();
+        string m_data(request->data(), 0, Constants::BLOCK_SIZE);
+//        entry.data = request->data();
+        entry.data = m_data;
         entry.reqId = request->clientrequestid();
+
         
         cout << "...Added entry " << request->seqnum() << " to pendingqueue with reqId " << entry.reqId.ip() << ":" << entry.reqId.pid() << ":" << entry.reqId.timestamp().seconds() << endl;
         
@@ -66,7 +69,6 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
             << sentListEntry.reqId.pid() << ":"
             << sentListEntry.reqId.timestamp().seconds() << " with result " << result << endl;
         cout << "...Printing replay log" << endl;
-        Tables::replayLog.printRelayLogContent();
            
         Tables::commitSeq = (int) request->seqnum();
         
@@ -87,6 +89,14 @@ grpc::Status server::NodeListenerImpl::RelayWriteAck (grpc::ServerContext *conte
         return grpc::Status::OK;
 }
 
+
+/**
+ * TODO : What is this for, nothing is calling it?
+ * @param context
+ * @param request
+ * @param reply
+ * @return
+ */
 grpc::Status server::NodeListenerImpl::ReplayLogChange (grpc::ServerContext *context,
         const server::ReplayLogChangeRequest *request,
         google::protobuf::Empty *reply) {
@@ -97,22 +107,27 @@ grpc::Status server::NodeListenerImpl::ReplayLogChange (grpc::ServerContext *con
 grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
         const server::RestoreRequest *request,
         google::protobuf::Empty *reply) {
-        
+
+        cout << "...Running restore" << endl;
         for (int i = 0; i < request->entry_size(); i++) {
             server::RestoreEntry entry = request->entry(i);
+//            cout << "...(" << i << ") restoring seq # "  << entry.seqnum() << endl;
             Storage::write(entry.data(), entry.offset(), entry.seqnum());
             Tables::writeSeq = entry.seqnum();
             Storage::commit(entry.seqnum(), entry.offset());
             Tables::commitSeq = entry.seqnum();
             Tables::currentSeq = entry.seqnum() + 1;
         }
+        cout << "...Finished restore" << endl;
         return grpc::Status::OK;       
 }
 
 grpc::Status server::NodeListenerImpl::UpdateReplayLog (grpc::ServerContext *context,
         const server::UpdateReplayLogRequest *request,
         google::protobuf::Empty *reply) {
+        cout << "...Running UpdateReplayLog" << endl;
         Tables::replayLog.initRelayLogContent(request);
+        cout << "...Finished UpdateReplayLog" << endl;
         return grpc::Status::OK;
 }
 
