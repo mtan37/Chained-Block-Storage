@@ -86,6 +86,7 @@ foreach(_target server)
     ./src/interfaceImpl/serverService/MasterListenerImpl.cpp
     ./src/storage.cpp
     ./src/helper.cpp
+    ./src/crash.cpp
     )
 
     target_compile_features(${_target} PRIVATE cxx_std_17)
@@ -115,7 +116,7 @@ endforeach()
 # compilre test objects
 # add executables to test directory
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks/testing)
-foreach(_target replay_log_test sent_list_test pending_queue_test storage_test crash_test)
+foreach(_target replay_log_test sent_list_test pending_queue_test storage_test crash_test crash_demo)
   add_executable(${_target} 
     ./src/benchmarks/testing/${_target}_main.cpp
     ${TableImpls}
