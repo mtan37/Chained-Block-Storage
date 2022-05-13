@@ -155,7 +155,7 @@ endforeach()
 
 # compile benchmarks
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/src/benchmarks)
-foreach(_target storage_benchmark throughput_benchmark)
+foreach(_target storage_benchmark throughput_benchmark latency_benchmark)
   add_executable(${_target} 
     ./src/benchmarks/${_target}.cpp
     ${TableImpls}
