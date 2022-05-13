@@ -109,15 +109,17 @@ grpc::Status server::NodeListenerImpl::Restore (grpc::ServerContext *context,
         google::protobuf::Empty *reply) {
 
         cout << "...Running restore" << endl;
+        long maxseq = Storage::get_sequence_number();
         for (int i = 0; i < request->entry_size(); i++) {
             server::RestoreEntry entry = request->entry(i);
 //            cout << "...(" << i << ") restoring seq # "  << entry.seqnum() << endl;
-            Storage::write(entry.data(), entry.offset(), entry.seqnum());
-            Tables::writeSeq = entry.seqnum();
-            Storage::commit(entry.seqnum(), entry.offset());
-            Tables::commitSeq = entry.seqnum();
-            Tables::currentSeq = entry.seqnum() + 1;
+            Storage::write(entry.data(), entry.offset(), entry.seqnum());        
+            Storage::commit(entry.seqnum(), entry.offset());    
+            if (entry.seqnum() > maxseq) maxseq = entry.seqnum();
         }
+        Tables::writeSeq = maxseq;
+        Tables::commitSeq = maxseq;
+        Tables::currentSeq = maxseq + 1;
         cout << "...Finished restore" << endl;
         return grpc::Status::OK;       
 }
