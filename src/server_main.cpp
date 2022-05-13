@@ -11,6 +11,7 @@
 #include "master.h"
 #include "server.h"
 #include "helper.h"
+#include "crash.hpp"
 
 #include <thread>
 
@@ -237,6 +238,10 @@ void relay_write_background() {
             cout << "...(RWB) WRITING :" << pending_entry.data.length() << ":" << endl;
             //Need clarification on file vs volume offset
             // TODO: Hypothetical lock
+            
+            // Crash point 1
+            Crash::check(pending_entry.volumeOffset, 1);
+            
             string m_data(pending_entry.data, 0, Constants::BLOCK_SIZE);
             Storage::write(m_data, pending_entry.volumeOffset, pending_entry.seqNum);
             cout << "...(RWB) Background write thread checkpoint 2 (written to volume)" << endl;
