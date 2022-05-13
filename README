@@ -1,0 +1,106 @@
+Most code can be found in the src file in the repo.  Within this repo the code is organized in the following manner
+
+/Benchmarks
+Project benchmarks along with testing scripts. It includes code/script for both latency and throughput benchmarks
+
+/headers
+All project header files
+/interfaceImpl
+Classes implementing the proto services.  They are broken into /masterService and /serverService.  Each service outlined in the proto has its own folder
+/tablesImpl
+Files implementing the replay log, sent list and pending queue
+Files directly in /src
+The majority of our functional prototype code
+
+The gRPC protos are located in the repo/protos folder.
+
+Client library interface is declared in src/headers/client_api.hpp
+The function implementations are in src/client_api.cpp
+
+The volume interface is defined in headers/storage.hpp and implemented in storage.cpp and storage-nonatomic.cpp. Cmake can be configured to use either implementation using the USE_NONATOMIC_VOLUME flag. The default is the atomic implementation. The storage implementations can be tested by themselves using benchmarks/testing/storage_test_main.cpp. The benchmarks for the storage implementations are in benchmarks/storage_benchmark.cpp.
+
+
+General
+-----------
+
+Master 
+-Launching the master → main() in master_main.cpp line 336
+-Master state and helper functions → master_main.cpp line 16
+
+Nodes
+-Launching nodes → main() in server_main.cpp line 383
+-Server state and helper functions → server_main.cpp line 32
+
+
+Integration
+-----------
+
+Nodes initiate registration → register_server() in server_main.cpp line 128
+
+Master registration stub → Register() in interfaceImpl/masterService/NodeListnerImpl.cpp line 16
+
+Existing nodes informed of updated state →ChangeMode() in  interfaceImpl/serverService/MasterListenerImpl.cpp line 43
+
+
+New node processes updates - Restore() in interfaceImpl/serverService/NodeListenerImpl line 108
+
+
+Failover
+------------
+
+Master heartbeat thread → run_heartbeat() in master_main.cpp line 287
+
+Deal with identified failure → hlp_Manage_Failure() in master_main.cpp line 93
+
+Nodes informed of new state and deal with failure scenarios → ChangeMode() in  interfaceImpl/serverService/MasterListenerImpl.cpp line 43
+
+
+Server In-Memory Structures
+------------
+
+Include replayLog, sentList, pendingQueue
+
+All the structure class declarations are in file src/headers/tables.hpp
+All the implementation are in directory src/tablesImpl/
+
+
+-------------------------------
+Message Propagation
+-------------------------------
+
+Writes
+----------
+
+Writes enter chain from client →Write() in  interfaceImpl/serverService/HeadServiceImpl.cpp line 16
+
+Writes pulled off pending queue - relay_write_background() in server_main.cpp line 201
+
+Writes sent down chain from node - RelayWrite() in interfaceImpl/serverService/NodeListenerImpl line 16
+
+Checksums
+-----------------
+
+Checksums enter chain → ChecksumSystem() in  interfaceImpl/serverService/HeadServiceImpl.cpp line 66
+
+Checksums  sent down chain from node → ChecksumChain() in interfaceImpl/serverService/NodeListenerImpl line 174
+
+Commits
+--------------
+
+Writes pulled of sent list and committed by tail → relay_write_ack_background() in server_main.cpp line 292
+
+Commits sent back up the chain → RelayWriteAck() in interfaceImpl/serverService/NodeListenerImpl line 56
+
+
+Client Write Acks
+------------------------
+
+Client request for write ack enters the chain → WriteAck() in interfaceImpl/serverService/TailServiceImpl line 9
+
+Ack sent up chain to keep replayLog synched across nodes → AckReplayLog() in interfaceImpl/serverService/NodeListenerImpl line 138
+
+Reads
+--------------
+
+Client request for read enters the chain and is processed immediately →Read() interfaceImpl/serverService/TailServiceImpl line 43
+
